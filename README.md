@@ -31,9 +31,22 @@ npm run dev
 
 ## Backend Integration
 
-현재 화면은 백엔드 실시간 기능 검증용 MVP입니다.
+현재 화면은 백엔드 OAuth, 스터디, 게시글, 댓글, 실시간 기능을 함께 확인하는 MVP 콘솔입니다.
 
 - `GET /api/v1/auth/me`
+- `GET /api/v1/studies`
+- `POST /api/v1/studies`
+- `POST /api/v1/studies/{studyId}/join`
+- `POST /api/v1/studies/{studyId}/leave`
+- `POST /api/v1/studies/{studyId}/close`
+- `GET /api/v1/posts`
+- `GET /api/v1/posts/{postId}`
+- `POST /api/v1/posts`
+- `PUT /api/v1/posts/{postId}`
+- `DELETE /api/v1/posts/{postId}`
+- `GET /api/v1/posts/{postId}/comments`
+- `POST /api/v1/posts/{postId}/comments`
+- `POST /api/v1/comments/{commentId}/replies`
 - `GET /api/v1/notifications`
 - STOMP `CONNECT /ws`
 - `SUBSCRIBE /topic/chat.rooms.{roomId}`
@@ -47,6 +60,10 @@ OAuth 로그인 흐름:
 3. 백엔드는 access token을 URL fragment에 담아 프론트 callback으로 redirect합니다.
 4. 프론트는 fragment를 메모리 state로 옮긴 뒤 URL에서 제거합니다.
 5. 새로고침 이후에는 `POST /api/v1/auth/refresh`로 access token을 다시 받습니다.
+
+프론트는 시작 시 refresh token cookie로 세션 복구를 자동 시도합니다. 성공하면 access token을 메모리 state로 복구하고 내 정보, 알림, 채팅방 목록을 동기화합니다.
+
+일반 화면에서는 access token과 backend URL 같은 내부 값을 숨깁니다. 수동 토큰 입력, 재발급, 내 정보/알림 동기화, roomId 직접 입력은 우측 상단 개발 도구 버튼에서 확인합니다.
 
 백엔드 OAuth 성공 redirect 기본값은 `http://localhost:5173/auth/callback`입니다. Vite가 `5174`로 떠 있으면 백엔드를 아래처럼 실행하세요.
 
