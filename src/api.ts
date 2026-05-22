@@ -1,5 +1,5 @@
 import { API_BASE_URL } from './config'
-import type { AuthProfile, NotificationItem } from './types'
+import type { AccessTokenResponse, AuthProfile, NotificationItem } from './types'
 
 type ApiResponse<T> = {
   success: boolean
@@ -15,6 +15,22 @@ type ApiErrorResponse = {
   }
 }
 
+export function oauthLoginUrl(provider: 'google' | 'kakao') {
+  return `${API_BASE_URL}/oauth2/authorization/${provider}`
+}
+
+export async function refreshAccessToken(): Promise<AccessTokenResponse> {
+  return request<AccessTokenResponse>('/api/v1/auth/refresh', undefined, {
+    method: 'POST',
+  })
+}
+
+export async function logoutSession(): Promise<void> {
+  await request<void>('/api/v1/auth/logout', undefined, {
+    method: 'POST',
+  })
+}
+
 export async function fetchMe(accessToken: string): Promise<AuthProfile> {
   return request<AuthProfile>('/api/v1/auth/me', accessToken)
 }
@@ -25,11 +41,20 @@ export async function fetchNotifications(
   return request<NotificationItem[]>('/api/v1/notifications', accessToken)
 }
 
-async function request<T>(path: string, accessToken: string): Promise<T> {
+async function request<T>(
+  path: string,
+  accessToken?: string,
+  init: RequestInit = {},
+): Promise<T> {
+  const headers = new Headers(init.headers)
+  if (accessToken) {
+    headers.set('Authorization', `Bearer ${accessToken}`)
+  }
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
+    ...init,
+    credentials: 'include',
+    headers,
   })
 
   const body = (await response.json()) as ApiResponse<T> | ApiErrorResponse

@@ -59,6 +59,7 @@
 }
 
 .nav-item,
+.auth-actions button,
 .control-actions button,
 .composer button {
   border: 0;
@@ -174,6 +175,7 @@ h2 {
   color: #b7791f;
 }
 
+.auth-strip,
 .control-strip,
 .main-column,
 .profile-panel,
@@ -184,10 +186,55 @@ h2 {
   border-radius: 16px;
 }
 
+.auth-strip,
 .control-strip {
   padding: 16px;
   gap: 12px;
   margin-bottom: 16px;
+}
+
+.auth-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.auth-summary {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 240px;
+}
+
+.auth-summary svg {
+  color: #3182f6;
+}
+
+.auth-summary strong {
+  display: block;
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.auth-summary span {
+  display: block;
+  color: #6b7684;
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.auth-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.auth-actions button {
+  padding: 0 13px;
+  color: #4e5968;
+  background: #f2f4f6;
 }
 
 label {
@@ -425,9 +472,18 @@ button:disabled {
   }
 
   .content-grid,
+  .auth-strip,
   .control-strip {
     grid-template-columns: 1fr;
     display: grid;
+  }
+
+  .auth-strip {
+    align-items: flex-start;
+  }
+
+  .auth-actions {
+    justify-content: flex-start;
   }
 
   .control-actions {
