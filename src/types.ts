@@ -2,6 +2,8 @@ export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'error'
 
 export type OAuthProvider = 'google' | 'kakao'
 
+export type WorkspaceView = 'studies' | 'posts' | 'chat' | 'notifications'
+
 export type AccessTokenResponse = {
   accessToken: string
   accessTokenExpiresAt: string
@@ -34,4 +36,35 @@ export type AuthProfile = {
   memberId?: number
   email?: string
   nickname?: string
+}
+
+export type StudyItem = {
+  id: number
+  ownerMemberId: number
+  title: string
+  description: string
+  status: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export type PostItem = {
+  id: number
+  authorMemberId: number
+  title: string
+  content: string
+  status: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export type CommentItem = {
+  id: number
+  postId: number
+  authorMemberId: number
+  parentCommentId?: number | null
+  content: string
+  status: string
+  createdAt?: string
+  updatedAt?: string
 }

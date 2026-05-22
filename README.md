@@ -31,9 +31,22 @@ npm run dev
 
 ## Backend Integration
 
-현재 화면은 백엔드 실시간 기능 검증용 MVP입니다.
+현재 화면은 백엔드 OAuth, 스터디, 게시글, 댓글, 실시간 기능을 함께 확인하는 MVP 콘솔입니다.
 
 - `GET /api/v1/auth/me`
+- `GET /api/v1/studies`
+- `POST /api/v1/studies`
+- `POST /api/v1/studies/{studyId}/join`
+- `POST /api/v1/studies/{studyId}/leave`
+- `POST /api/v1/studies/{studyId}/close`
+- `GET /api/v1/posts`
+- `GET /api/v1/posts/{postId}`
+- `POST /api/v1/posts`
+- `PUT /api/v1/posts/{postId}`
+- `DELETE /api/v1/posts/{postId}`
+- `GET /api/v1/posts/{postId}/comments`
+- `POST /api/v1/posts/{postId}/comments`
+- `POST /api/v1/comments/{commentId}/replies`
 - `GET /api/v1/notifications`
 - STOMP `CONNECT /ws`
 - `SUBSCRIBE /topic/chat.rooms.{roomId}`
