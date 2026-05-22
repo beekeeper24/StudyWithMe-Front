@@ -1,26 +1,39 @@
-import { useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import type { Client } from '@stomp/stompjs'
 import {
   Bell,
   BookOpen,
   Circle,
+  KeyRound,
+  LogIn,
+  LogOut,
   MessageSquareText,
   Newspaper,
   Plug,
   RefreshCw,
   Send,
   Settings2,
+  ShieldCheck,
   Users,
 } from 'lucide-react'
 import './App.css'
-import { fetchMe, fetchNotifications } from './api'
+import { consumeOAuthCallback } from './auth'
+import {
+  fetchMe,
+  fetchNotifications,
+  logoutSession,
+  oauthLoginUrl,
+  refreshAccessToken,
+} from './api'
 import { API_BASE_URL, WS_URL } from './config'
 import { createRealtimeClient, sendChatMessage } from './realtime'
 import type {
+  AccessTokenResponse,
   AuthProfile,
   ChatMessage,
   ConnectionStatus,
   NotificationItem,
+  OAuthProvider,
 } from './types'
 
 const navItems = [
@@ -30,19 +43,43 @@ const navItems = [
   { label: '알림', icon: Bell },
 ]
 
+const oauthProviders: Array<{ id: OAuthProvider; label: string }> = [
+  { id: 'google', label: 'Google' },
+  { id: 'kakao', label: 'Kakao' },
+]
+
+const initialOAuthToken = consumeOAuthCallback()
+
 function App() {
-  const [accessToken, setAccessToken] = useState('')
+  const [accessToken, setAccessToken] = useState(initialOAuthToken?.accessToken ?? '')
+  const [tokenExpiresAt, setTokenExpiresAt] = useState<string | null>(
+    initialOAuthToken?.accessTokenExpiresAt ?? null,
+  )
   const [roomId, setRoomId] = useState('')
   const [message, setMessage] = useState('')
   const [status, setStatus] = useState<ConnectionStatus>('idle')
   const [profile, setProfile] = useState<AuthProfile | null>(null)
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
-  const [log, setLog] = useState<string[]>(['프론트가 준비되었습니다.'])
+  const [log, setLog] = useState<string[]>(
+    initialOAuthToken
+      ? ['OAuth 로그인 callback 처리 완료', '프론트가 준비되었습니다.']
+      : ['프론트가 준비되었습니다.'],
+  )
   const clientRef = useRef<Client | null>(null)
 
   const canConnect = accessToken.trim().length > 0
   const activeRoomLabel = roomId.trim() ? `Room #${roomId.trim()}` : '방 미선택'
+
+  const appendLog = useCallback((item: string) => {
+    setLog((current) => [item, ...current].slice(0, 8))
+  }, [])
+
+  const applyToken = useCallback((token: AccessTokenResponse) => {
+    setAccessToken(token.accessToken)
+    setTokenExpiresAt(token.accessTokenExpiresAt)
+  }, [])
+
 
   const statusText = useMemo(() => {
     if (status === 'connected') return '연결됨'
@@ -51,8 +88,32 @@ function App() {
     return '대기'
   }, [status])
 
-  function appendLog(item: string) {
-    setLog((current) => [item, ...current].slice(0, 8))
+  function startOAuth(provider: OAuthProvider) {
+    window.location.assign(oauthLoginUrl(provider))
+  }
+
+  async function refreshSession() {
+    try {
+      const token = await refreshAccessToken()
+      applyToken(token)
+      appendLog('access token 재발급 성공')
+    } catch (error) {
+      appendLog(error instanceof Error ? error.message : 'access token 재발급 실패')
+    }
+  }
+
+  async function logout() {
+    try {
+      await logoutSession()
+      disconnectRealtime()
+      setAccessToken('')
+      setTokenExpiresAt(null)
+      setProfile(null)
+      setNotifications([])
+      appendLog('로그아웃 완료')
+    } catch (error) {
+      appendLog(error instanceof Error ? error.message : '로그아웃 실패')
+    }
   }
 
   async function loadProfile() {
@@ -161,13 +222,43 @@ function App() {
           </div>
         </header>
 
+        <section className="auth-strip" aria-label="oauth login controls">
+          <div className="auth-summary">
+            <ShieldCheck size={19} />
+            <div>
+              <strong>{canConnect ? '인증 세션 준비됨' : 'OAuth 로그인 필요'}</strong>
+              <span>
+                {tokenExpiresAt
+                  ? `access token 만료 ${formatTime(tokenExpiresAt)}`
+                  : 'refresh token은 HttpOnly cookie로 관리됩니다.'}
+              </span>
+            </div>
+          </div>
+          <div className="auth-actions">
+            {oauthProviders.map((provider) => (
+              <button key={provider.id} type="button" onClick={() => startOAuth(provider.id)}>
+                <LogIn size={16} />
+                {provider.label}
+              </button>
+            ))}
+            <button type="button" onClick={refreshSession}>
+              <KeyRound size={16} />
+              재발급
+            </button>
+            <button type="button" onClick={logout}>
+              <LogOut size={16} />
+              로그아웃
+            </button>
+          </div>
+        </section>
+
         <section className="control-strip" aria-label="connection controls">
           <label>
             <span>Access token</span>
             <input
               value={accessToken}
               onChange={(event) => setAccessToken(event.target.value)}
-              placeholder="OAuth 로그인 후 받은 access token"
+              placeholder="OAuth callback 또는 재발급으로 자동 입력됩니다"
               type="password"
             />
           </label>

@@ -1,5 +1,13 @@
 export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'error'
 
+export type OAuthProvider = 'google' | 'kakao'
+
+export type AccessTokenResponse = {
+  accessToken: string
+  accessTokenExpiresAt: string
+  tokenType: 'Bearer'
+}
+
 export type ChatMessage = {
   id?: number
   roomId: number
@@ -17,7 +25,7 @@ export type NotificationItem = {
   targetId: number
   message: string
   read: boolean
-  createdAt?: string
+  createdAt?: string | null
   readAt?: string | null
 }
 
