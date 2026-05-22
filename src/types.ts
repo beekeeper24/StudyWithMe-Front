@@ -18,6 +18,13 @@ export type ChatMessage = {
   createdAt?: string
 }
 
+export type ChatRoom = {
+  id: number
+  type: string
+  studyId?: number | null
+  createdAt?: string
+}
+
 export type NotificationItem = {
   id?: number
   receiverMemberId: number

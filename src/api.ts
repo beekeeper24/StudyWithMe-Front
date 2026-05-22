@@ -3,6 +3,8 @@ import type {
   AccessTokenResponse,
   AuthProfile,
   CommentItem,
+  ChatMessage,
+  ChatRoom,
   NotificationItem,
   OAuthProvider,
   PostItem,
@@ -49,8 +51,32 @@ export async function fetchNotifications(
   return request<NotificationItem[]>('/api/v1/notifications', accessToken)
 }
 
+export async function fetchChatRooms(accessToken: string): Promise<ChatRoom[]> {
+  return request<ChatRoom[]>('/api/v1/chat/rooms', accessToken)
+}
+
+export async function createStudyChatRoom(
+  accessToken: string,
+  studyId: number,
+): Promise<ChatRoom> {
+  return request<ChatRoom>(`/api/v1/studies/${studyId}/chat-room`, accessToken, {
+    method: 'POST',
+  })
+}
+
+export async function fetchChatMessages(
+  accessToken: string,
+  roomId: number,
+): Promise<ChatMessage[]> {
+  return request<ChatMessage[]>(`/api/v1/chat/rooms/${roomId}/messages`, accessToken)
+}
+
 export async function fetchStudies(): Promise<StudyItem[]> {
   return request<StudyItem[]>('/api/v1/studies')
+}
+
+export async function fetchStudy(studyId: number): Promise<StudyItem> {
+  return request<StudyItem>(`/api/v1/studies/${studyId}`)
 }
 
 export async function createStudy(

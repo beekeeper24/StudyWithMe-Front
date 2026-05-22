@@ -67,6 +67,7 @@
 .composer button,
 .row-actions button,
 .icon-text-button,
+.dev-toggle-button,
 .post-actions button,
 .reply-composer button,
 .form-stack button {
@@ -265,10 +266,16 @@ h2 {
 .control-actions button,
 .row-actions button,
 .icon-text-button,
+.dev-toggle-button,
 .post-actions button {
   padding: 0 13px;
   color: #4e5968;
   background: #f2f4f6;
+}
+
+.dev-toggle-button {
+  width: 40px;
+  padding: 0;
 }
 
 label {
@@ -281,6 +288,12 @@ label span {
   color: #6b7684;
   font-size: 12px;
   font-weight: 700;
+}
+
+.dev-note {
+  color: #8b95a1;
+  font-size: 12px;
+  font-style: normal;
 }
 
 input,
@@ -378,6 +391,7 @@ button:disabled {
 .post-list,
 .comment-list,
 .form-stack,
+.room-list,
 .side-column {
   display: grid;
   gap: 12px;
@@ -401,10 +415,19 @@ button:disabled {
 .list-row p,
 .post-detail p,
 .comment-row p,
-.reply-row p {
+.reply-row p,
+.panel-copy {
   color: #333d4b;
   line-height: 1.55;
   overflow-wrap: anywhere;
+}
+
+.panel-copy {
+  margin-bottom: 10px;
+}
+
+.panel-action {
+  margin-top: 14px;
 }
 
 .row-title {
@@ -448,9 +471,29 @@ button:disabled {
 }
 
 .post-list-item.active,
-.post-list-item:hover {
+.post-list-item:hover,
+.room-list-item.active,
+.room-list-item:hover {
   border-color: #3182f6;
   background: #f6faff;
+}
+
+.room-list-item {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #edf0f3;
+  border-radius: 12px;
+  color: #191f28;
+  background: #ffffff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.room-list-item span {
+  color: #6b7684;
+  font-size: 13px;
 }
 
 .post-detail {
