@@ -51,6 +51,7 @@ import {
   oauthLoginUrl,
   refreshAccessToken,
   replyToComment,
+  updateNickname,
   updatePost,
 } from './api'
 import { API_BASE_URL } from './config'
@@ -149,6 +150,9 @@ function App() {
   const [comments, setComments] = useState<CommentItem[]>([])
   const [studyForm, setStudyForm] = useState(emptyStudyForm)
   const [postForm, setPostForm] = useState(emptyPostForm)
+  const [nicknameDraft, setNicknameDraft] = useState('')
+  const [nicknameError, setNicknameError] = useState('')
+  const [isNicknameSaving, setIsNicknameSaving] = useState(false)
   const [commentText, setCommentText] = useState('')
   const [replyDrafts, setReplyDrafts] = useState<Record<number, string>>({})
   const [showDevTools, setShowDevTools] = useState(false)
@@ -165,6 +169,7 @@ function App() {
   const clientRef = useRef<Client | null>(null)
 
   const canConnect = accessToken.trim().length > 0
+  const needsNickname = profile?.nicknameRequired === true
   const selectedPostId = selectedPost?.id ?? null
   const profileImageSrc =
     profile?.profileImageUrl ?? avatarDataUrl(profile?.nickname ?? profile?.email ?? 'StudyWithMe')
@@ -181,6 +186,12 @@ function App() {
 
   const appendLog = useCallback((item: string) => {
     setLog((current) => [item, ...current].slice(0, 8))
+  }, [])
+
+  const applyProfile = useCallback((nextProfile: AuthProfile | null) => {
+    setProfile(nextProfile)
+    setNicknameDraft(nextProfile?.nickname ?? '')
+    setNicknameError('')
   }, [])
 
   const applyToken = useCallback((token: AccessTokenResponse) => {
@@ -205,7 +216,7 @@ function App() {
   )
 
   useEffect(() => {
-    if (!canConnect) return undefined
+    if (!canConnect || needsNickname) return undefined
     let cancelled = false
 
     async function loadInitialContent() {
@@ -226,7 +237,7 @@ function App() {
     return () => {
       cancelled = true
     }
-  }, [accessToken, appendLog, canConnect])
+  }, [accessToken, appendLog, canConnect, needsNickname])
 
   useEffect(() => {
     if (!initialOAuthToken) return undefined
@@ -235,14 +246,18 @@ function App() {
     async function loadInitialProfile() {
       try {
         const token = initialOAuthToken?.accessToken ?? ''
-        const [me, items, rooms, history] = await Promise.all([
-          fetchMe(token),
+        const me = await fetchMe(token)
+        if (!cancelled) {
+          applyProfile(me)
+        }
+        if (cancelled || me.nicknameRequired) return
+
+        const [items, rooms, history] = await Promise.all([
           fetchNotifications(token),
           fetchChatRooms(token),
           fetchMyStudies(token),
         ])
         if (!cancelled) {
-          setProfile(me)
           setNotifications(items)
           setChatRooms(rooms)
           setMyStudyHistory(history)
@@ -259,7 +274,7 @@ function App() {
     return () => {
       cancelled = true
     }
-  }, [appendLog])
+  }, [appendLog, applyProfile])
 
   useEffect(() => {
     if (initialOAuthToken) return
@@ -270,14 +285,17 @@ function App() {
         const token = await refreshAccessToken()
         if (cancelled) return
         applyToken(token)
-        const [me, items, history] = await Promise.all([
-          fetchMe(token.accessToken),
+        const me = await fetchMe(token.accessToken)
+        if (cancelled) return
+        applyProfile(me)
+        if (me.nicknameRequired) return
+
+        const [items, history, rooms] = await Promise.all([
           fetchNotifications(token.accessToken),
           fetchMyStudies(token.accessToken),
+          fetchChatRooms(token.accessToken),
         ])
-        const rooms = await fetchChatRooms(token.accessToken)
         if (cancelled) return
-        setProfile(me)
         setNotifications(items)
         setMyStudyHistory(history)
         setChatRooms(rooms)
@@ -297,7 +315,7 @@ function App() {
     return () => {
       cancelled = true
     }
-  }, [appendLog, applyToken])
+  }, [appendLog, applyProfile, applyToken])
 
   function startOAuth(provider: OAuthProvider) {
     window.location.assign(oauthLoginUrl(provider))
@@ -319,7 +337,7 @@ function App() {
       disconnectRealtime()
       setAccessToken('')
       setTokenExpiresAt(null)
-      setProfile(null)
+      applyProfile(null)
       setNotifications([])
       setChatRooms([])
       setChatMessages([])
@@ -346,10 +364,33 @@ function App() {
     if (!canConnect) return
     try {
       const me = await fetchMe(accessToken.trim())
-      setProfile(me)
+      applyProfile(me)
       appendLog('내 정보 조회 성공')
     } catch (error) {
       appendLog(error instanceof Error ? error.message : '내 정보 조회 실패')
+    }
+  }
+
+  async function submitNickname() {
+    const nickname = nicknameDraft.trim()
+    if (!canConnect || isNicknameSaving) return
+    if (!isValidNickname(nickname)) {
+      setNicknameError('2~20자의 한글, 영문, 숫자, 밑줄만 사용할 수 있습니다.')
+      return
+    }
+
+    try {
+      setIsNicknameSaving(true)
+      setNicknameError('')
+      const updatedProfile = await updateNickname(accessToken.trim(), nickname)
+      applyProfile(updatedProfile)
+      setActiveView('lobby')
+      appendLog('별명 설정 완료')
+      await Promise.all([loadStudies(), loadMyStudies(), loadChatRooms()])
+    } catch (error) {
+      setNicknameError(error instanceof Error ? error.message : '별명 설정 실패')
+    } finally {
+      setIsNicknameSaving(false)
     }
   }
 
@@ -689,6 +730,46 @@ function App() {
               </button>
             ))}
           </div>
+        </section>
+      </main>
+    )
+  }
+
+  if (needsNickname) {
+    return (
+      <main className="login-page">
+        <section className="nickname-card" aria-label="별명 설정">
+          <div className="brand login-brand">
+            <img className="nickname-profile-image" src={profileImageSrc} alt="" />
+            <div>
+              <strong>별명 설정</strong>
+              <span>{profile?.email ?? 'StudyWithMe'}</span>
+            </div>
+          </div>
+          <label>
+            <span>별명</span>
+            <input
+              value={nicknameDraft}
+              onChange={(event) => {
+                setNicknameDraft(event.target.value)
+                setNicknameError('')
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') void submitNickname()
+              }}
+              placeholder="예: 스터디왕"
+              autoFocus
+            />
+          </label>
+          {nicknameError && <p className="form-error">{nicknameError}</p>}
+          <button
+            className="primary wide"
+            type="button"
+            onClick={submitNickname}
+            disabled={isNicknameSaving || !nicknameDraft.trim()}
+          >
+            저장
+          </button>
         </section>
       </main>
     )
@@ -1196,7 +1277,25 @@ function App() {
             <strong>{profile?.nickname ?? '내 프로필'}</strong>
             <span>{profile?.email ?? '계정 정보를 확인할 수 없습니다.'}</span>
           </div>
+          <div className="nickname-edit-form">
+            <input
+              value={nicknameDraft}
+              onChange={(event) => {
+                setNicknameDraft(event.target.value)
+                setNicknameError('')
+              }}
+              placeholder="별명"
+            />
+            <button
+              type="button"
+              onClick={submitNickname}
+              disabled={isNicknameSaving || !nicknameDraft.trim()}
+            >
+              저장
+            </button>
+          </div>
         </section>
+        {nicknameError && <p className="form-error inline">{nicknameError}</p>}
 
         <div className="study-history-grid">
           <section className="history-section" aria-label="참여 중인 스터디">
@@ -1779,6 +1878,10 @@ function actionLabel(action: 'join' | 'leave' | 'close') {
   if (action === 'join') return '참여'
   if (action === 'close') return '마감'
   return '탈퇴'
+}
+
+function isValidNickname(nickname: string) {
+  return /^[가-힣A-Za-z0-9_]{2,20}$/.test(nickname)
 }
 
 function isStudyRecruiting(status: string) {

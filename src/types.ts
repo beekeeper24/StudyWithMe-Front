@@ -52,6 +52,7 @@ export type AuthProfile = {
   email?: string
   nickname?: string
   profileImageUrl?: string | null
+  nicknameRequired?: boolean
 }
 
 export type StudyItem = {
