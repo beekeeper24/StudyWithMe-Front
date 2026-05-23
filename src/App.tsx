@@ -54,6 +54,7 @@ import {
   replyToComment,
   updateNickname,
   updatePost,
+  withdrawAccount,
 } from './api'
 import { API_BASE_URL } from './config'
 import { createRealtimeClient, sendChatMessage } from './realtime'
@@ -339,32 +340,53 @@ function App() {
   async function logout() {
     try {
       await logoutSession()
-      disconnectRealtime()
-      setAccessToken('')
-      setTokenExpiresAt(null)
-      applyProfile(null)
-      setNotifications([])
-      setChatRooms([])
-      setChatMessages([])
-      setChatMembers([])
-      setStudies([])
-      setMyStudyHistory(emptyStudyHistory)
-      setSelectedStudy(null)
-      setStudyBoardMode('list')
-      setPosts([])
-      setSelectedPost(null)
-      setComments([])
-      setPostBoardMode('list')
-      setShowNotificationMenu(false)
-      setShowProfileMenu(false)
-      setShowChatMembers(false)
-      setTermsAgreed(false)
-      setPrivacyPolicyAgreed(false)
-      setSessionChecked(true)
+      clearAuthenticatedState()
       appendLog('로그아웃 완료')
     } catch (error) {
       appendLog(error instanceof Error ? error.message : '로그아웃 실패')
     }
+  }
+
+  async function withdrawCurrentAccount() {
+    if (!canConnect || isNicknameSaving) return
+    const confirmed = window.confirm('회원 탈퇴 후 같은 OAuth 계정으로 다시 가입할 수 있습니다. 계속할까요?')
+    if (!confirmed) return
+
+    try {
+      setIsNicknameSaving(true)
+      await withdrawAccount(accessToken.trim())
+      clearAuthenticatedState()
+      appendLog('회원 탈퇴 완료')
+    } catch (error) {
+      appendLog(error instanceof Error ? error.message : '회원 탈퇴 실패')
+    } finally {
+      setIsNicknameSaving(false)
+    }
+  }
+
+  function clearAuthenticatedState() {
+    disconnectRealtime()
+    setAccessToken('')
+    setTokenExpiresAt(null)
+    applyProfile(null)
+    setNotifications([])
+    setChatRooms([])
+    setChatMessages([])
+    setChatMembers([])
+    setStudies([])
+    setMyStudyHistory(emptyStudyHistory)
+    setSelectedStudy(null)
+    setStudyBoardMode('list')
+    setPosts([])
+    setSelectedPost(null)
+    setComments([])
+    setPostBoardMode('list')
+    setShowNotificationMenu(false)
+    setShowProfileMenu(false)
+    setShowChatMembers(false)
+    setTermsAgreed(false)
+    setPrivacyPolicyAgreed(false)
+    setSessionChecked(true)
   }
 
   async function loadProfile() {
@@ -1368,6 +1390,15 @@ function App() {
               저장
             </button>
           </div>
+          <button
+            className="danger-text-button"
+            type="button"
+            onClick={withdrawCurrentAccount}
+            disabled={isNicknameSaving}
+          >
+            <Trash2 size={15} />
+            회원 탈퇴
+          </button>
         </section>
         {nicknameError && <p className="form-error inline">{nicknameError}</p>}
 
