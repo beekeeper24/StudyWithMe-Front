@@ -5,21 +5,23 @@ import {
   BookOpen,
   CheckCircle2,
   Circle,
+  House,
   KeyRound,
   LogIn,
   LogOut,
   MessageSquareText,
   Newspaper,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plug,
   Plus,
   RefreshCw,
   SlidersHorizontal,
   Send,
   Settings2,
-  ShieldCheck,
   Trash2,
   Users,
-  XCircle,
+  X,
 } from 'lucide-react'
 import './App.css'
 import { consumeOAuthCallback } from './auth'
@@ -30,6 +32,7 @@ import {
   createStudy,
   createStudyChatRoom,
   deletePost,
+  fetchChatRoomMembers,
   fetchChatMessages,
   fetchChatRooms,
   fetchComments,
@@ -54,6 +57,7 @@ import type {
   AuthProfile,
   ChatMessage,
   ChatRoom,
+  ChatRoomMember,
   CommentItem,
   ConnectionStatus,
   NotificationItem,
@@ -64,11 +68,20 @@ import type {
 } from './types'
 
 const navItems: Array<{ id: WorkspaceView; label: string; icon: typeof BookOpen }> = [
+  { id: 'lobby', label: '홈', icon: House },
   { id: 'studies', label: '스터디', icon: BookOpen },
-  { id: 'posts', label: '게시글', icon: Newspaper },
+  { id: 'posts', label: '커뮤니티', icon: Newspaper },
   { id: 'chat', label: '채팅', icon: MessageSquareText },
-  { id: 'notifications', label: '알림', icon: Bell },
 ]
+
+const communityBoards = [
+  { id: 'free', label: '자유게시판' },
+  { id: 'question', label: '질문게시판' },
+  { id: 'review', label: '후기게시판' },
+  { id: 'notice', label: '공지사항' },
+] as const
+
+const recruitingStudyStatuses = new Set(['OPEN', 'RECRUITING'])
 
 const oauthProviders: Array<{ id: OAuthProvider; label: string }> = [
   { id: 'google', label: 'Google' },
@@ -77,11 +90,35 @@ const oauthProviders: Array<{ id: OAuthProvider; label: string }> = [
 
 const initialOAuthToken = consumeOAuthCallback()
 
-const emptyStudyForm = { title: '', description: '' }
+const emptyStudyForm = { title: '', method: '', target: '', rules: '' }
 const emptyPostForm = { title: '', content: '' }
+type StudyBoardMode = 'list' | 'write'
+type PostBoardMode = 'list' | 'detail' | 'write'
+
+async function fetchVisibleStudies(token?: string) {
+  if (token) {
+    try {
+      return await fetchStudies(token)
+    } catch {
+      return fetchStudies()
+    }
+  }
+  return fetchStudies()
+}
+
+async function fetchVisibleStudy(studyId: number, token?: string) {
+  if (token) {
+    try {
+      return await fetchStudy(studyId, token)
+    } catch {
+      return fetchStudy(studyId)
+    }
+  }
+  return fetchStudy(studyId)
+}
 
 function App() {
-  const [activeView, setActiveView] = useState<WorkspaceView>('studies')
+  const [activeView, setActiveView] = useState<WorkspaceView>('lobby')
   const [accessToken, setAccessToken] = useState(initialOAuthToken?.accessToken ?? '')
   const [tokenExpiresAt, setTokenExpiresAt] = useState<string | null>(
     initialOAuthToken?.accessTokenExpiresAt ?? null,
@@ -92,29 +129,48 @@ function App() {
   const [profile, setProfile] = useState<AuthProfile | null>(null)
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([])
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
+  const [chatMembers, setChatMembers] = useState<ChatRoomMember[]>([])
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [studies, setStudies] = useState<StudyItem[]>([])
   const [selectedStudy, setSelectedStudy] = useState<StudyItem | null>(null)
+  const [studyBoardMode, setStudyBoardMode] = useState<StudyBoardMode>('list')
   const [posts, setPosts] = useState<PostItem[]>([])
   const [selectedPost, setSelectedPost] = useState<PostItem | null>(null)
   const [editingPostId, setEditingPostId] = useState<number | null>(null)
+  const [postBoardMode, setPostBoardMode] = useState<PostBoardMode>('list')
+  const [selectedCommunityBoard, setSelectedCommunityBoard] =
+    useState<(typeof communityBoards)[number]['id']>('free')
   const [comments, setComments] = useState<CommentItem[]>([])
   const [studyForm, setStudyForm] = useState(emptyStudyForm)
   const [postForm, setPostForm] = useState(emptyPostForm)
   const [commentText, setCommentText] = useState('')
   const [replyDrafts, setReplyDrafts] = useState<Record<number, string>>({})
   const [showDevTools, setShowDevTools] = useState(false)
+  const [showNotificationMenu, setShowNotificationMenu] = useState(false)
+  const [showProfileMenu, setShowProfileMenu] = useState(false)
+  const [showChatMembers, setShowChatMembers] = useState(false)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [sessionChecked, setSessionChecked] = useState(Boolean(initialOAuthToken))
   const [log, setLog] = useState<string[]>(
     initialOAuthToken
-      ? ['OAuth 로그인 callback 처리 완료', '프론트가 준비되었습니다.']
+      ? ['로그인 처리 완료', '프론트가 준비되었습니다.']
       : ['프론트가 준비되었습니다.'],
   )
   const clientRef = useRef<Client | null>(null)
 
   const canConnect = accessToken.trim().length > 0
-  const activeRoomLabel = roomId.trim() ? `Room #${roomId.trim()}` : '방 미선택'
   const selectedPostId = selectedPost?.id ?? null
+  const profileImageSrc = avatarDataUrl(profile?.nickname ?? profile?.email ?? 'StudyWithMe')
+  const recruitingStudies = useMemo(
+    () => studies.filter((study) => isStudyRecruiting(study.status)),
+    [studies],
+  )
+  const activeRoom = useMemo(
+    () => chatRooms.find((room) => String(room.id) === roomId.trim()),
+    [chatRooms, roomId],
+  )
+  const activeRoomLabel = activeRoom ? chatRoomTitle(activeRoom, studies) : '방 미선택'
+  const activeProfileMemberId = profile?.memberId ?? profile?.id ?? null
 
   const appendLog = useCallback((item: string) => {
     setLog((current) => [item, ...current].slice(0, 8))
@@ -136,26 +192,24 @@ function App() {
     () => comments.filter((item) => item.parentCommentId == null),
     [comments],
   )
+  const unreadNotifications = useMemo(
+    () => notifications.filter((item) => !item.read).length,
+    [notifications],
+  )
 
   useEffect(() => {
+    if (!canConnect) return undefined
     let cancelled = false
 
     async function loadInitialContent() {
       try {
-        const [studyItems, postItems] = await Promise.all([fetchStudies(), fetchPosts()])
+        const [studyItems, postItems] = await Promise.all([
+          fetchVisibleStudies(accessToken.trim()),
+          fetchPosts(),
+        ])
         if (cancelled) return
         setStudies(studyItems)
         setPosts(postItems)
-
-        if (postItems.length > 0) {
-          const [post, postComments] = await Promise.all([
-            fetchPost(postItems[0].id),
-            fetchComments(postItems[0].id),
-          ])
-          if (cancelled) return
-          setSelectedPost(post)
-          setComments(postComments)
-        }
       } catch (error) {
         appendLog(error instanceof Error ? error.message : '초기 데이터 조회 실패')
       }
@@ -165,7 +219,7 @@ function App() {
     return () => {
       cancelled = true
     }
-  }, [appendLog])
+  }, [accessToken, appendLog, canConnect])
 
   useEffect(() => {
     if (!initialOAuthToken) return undefined
@@ -256,6 +310,19 @@ function App() {
       setTokenExpiresAt(null)
       setProfile(null)
       setNotifications([])
+      setChatRooms([])
+      setChatMessages([])
+      setChatMembers([])
+      setStudies([])
+      setSelectedStudy(null)
+      setStudyBoardMode('list')
+      setPosts([])
+      setSelectedPost(null)
+      setComments([])
+      setPostBoardMode('list')
+      setShowNotificationMenu(false)
+      setShowProfileMenu(false)
+      setShowChatMembers(false)
       setSessionChecked(true)
       appendLog('로그아웃 완료')
     } catch (error) {
@@ -298,11 +365,11 @@ function App() {
 
   async function loadStudies() {
     try {
-      const items = await fetchStudies()
+      const items = await fetchVisibleStudies(accessToken.trim())
       setStudies(items)
-      if (!selectedStudy && items.length > 0) {
-        setSelectedStudy(items[0])
-      }
+      setSelectedStudy((current) =>
+        current ? (items.find((item) => item.id === current.id) ?? null) : null,
+      )
     } catch (error) {
       appendLog(error instanceof Error ? error.message : '스터디 목록 조회 실패')
     }
@@ -310,18 +377,25 @@ function App() {
 
   async function selectStudy(studyId: number) {
     try {
-      const item = await fetchStudy(studyId)
+      const item = await fetchVisibleStudy(studyId, accessToken.trim())
       setSelectedStudy(item)
     } catch (error) {
       appendLog(error instanceof Error ? error.message : '스터디 상세 조회 실패')
     }
   }
 
+  async function toggleStudyDetail(studyId: number) {
+    if (selectedStudy?.id === studyId) {
+      setSelectedStudy(null)
+      return
+    }
+    await selectStudy(studyId)
+  }
+
   async function openStudyChatRoom(studyId: number) {
     if (!canConnect) return
     try {
       const room = await createStudyChatRoom(accessToken.trim(), studyId)
-      setRoomId(String(room.id))
       setActiveView('chat')
       await loadChatRooms()
       await loadChatMessages(room.id)
@@ -332,15 +406,24 @@ function App() {
   }
 
   async function submitStudy() {
-    if (!canConnect || !studyForm.title.trim() || !studyForm.description.trim()) return
+    if (
+      !canConnect ||
+      !studyForm.title.trim() ||
+      !studyForm.method.trim() ||
+      !studyForm.target.trim() ||
+      !studyForm.rules.trim()
+    ) {
+      return
+    }
     try {
       const created = await createStudy(accessToken.trim(), {
         title: studyForm.title.trim(),
-        description: studyForm.description.trim(),
+        description: buildStudyDescription(studyForm),
       })
       setStudyForm(emptyStudyForm)
       await loadStudies()
       setSelectedStudy(created)
+      setStudyBoardMode('list')
       appendLog('스터디 생성 완료')
     } catch (error) {
       appendLog(error instanceof Error ? error.message : '스터디 생성 실패')
@@ -349,25 +432,31 @@ function App() {
 
   async function mutateStudy(studyId: number, action: 'join' | 'leave' | 'close') {
     if (!canConnect) return
+    const wasSelected = selectedStudy?.id === studyId
     try {
       if (action === 'join') await joinStudy(accessToken.trim(), studyId)
       if (action === 'leave') await leaveStudy(accessToken.trim(), studyId)
       if (action === 'close') await closeStudy(accessToken.trim(), studyId)
       await loadStudies()
-      await selectStudy(studyId)
+      await loadChatRooms()
+      if (wasSelected) await selectStudy(studyId)
       appendLog(`스터디 ${actionLabel(action)} 완료`)
     } catch (error) {
       appendLog(error instanceof Error ? error.message : `스터디 ${actionLabel(action)} 실패`)
     }
   }
 
+  function isStudyJoined(studyId: number) {
+    return (
+      studies.find((study) => study.id === studyId)?.joinedByRequester === true ||
+      (selectedStudy?.id === studyId && selectedStudy.joinedByRequester === true)
+    )
+  }
+
   async function loadPosts() {
     try {
       const items = await fetchPosts()
       setPosts(items)
-      if (!selectedPostId && items.length > 0) {
-        await selectPost(items[0].id)
-      }
     } catch (error) {
       appendLog(error instanceof Error ? error.message : '게시글 목록 조회 실패')
     }
@@ -378,6 +467,7 @@ function App() {
       const [post, postComments] = await Promise.all([fetchPost(postId), fetchComments(postId)])
       setSelectedPost(post)
       setComments(postComments)
+      setPostBoardMode('detail')
     } catch (error) {
       appendLog(error instanceof Error ? error.message : '게시글 상세 조회 실패')
     }
@@ -399,6 +489,7 @@ function App() {
       setEditingPostId(null)
       await loadPosts()
       await selectPost(post.id)
+      setPostBoardMode('detail')
       appendLog(editingPostId ? '게시글 수정 완료' : '게시글 작성 완료')
     } catch (error) {
       appendLog(error instanceof Error ? error.message : '게시글 저장 실패')
@@ -412,6 +503,7 @@ function App() {
       setSelectedPost(null)
       setComments([])
       await loadPosts()
+      setPostBoardMode('list')
       appendLog('게시글 삭제 완료')
     } catch (error) {
       appendLog(error instanceof Error ? error.message : '게시글 삭제 실패')
@@ -422,7 +514,7 @@ function App() {
     setSelectedPost(post)
     setEditingPostId(post.id)
     setPostForm({ title: post.title, content: post.content })
-    void selectPost(post.id)
+    setPostBoardMode('write')
   }
 
   function beginCreatePost() {
@@ -432,6 +524,7 @@ function App() {
     setComments([])
     setCommentText('')
     setReplyDrafts({})
+    setPostBoardMode('write')
   }
 
   async function submitComment() {
@@ -462,30 +555,41 @@ function App() {
   async function loadChatMessages(roomIdValue: number) {
     if (!canConnect) return
     try {
+      disconnectRealtime()
+      setRoomId(String(roomIdValue))
+      setShowChatMembers(false)
       const messages = await fetchChatMessages(accessToken.trim(), roomIdValue)
       setChatMessages(messages)
-      setRoomId(String(roomIdValue))
+      try {
+        const members = await fetchChatRoomMembers(accessToken.trim(), roomIdValue)
+        setChatMembers(members)
+      } catch {
+        setChatMembers([])
+      }
+      connectRealtime(roomIdValue)
       appendLog(`채팅 메시지 ${messages.length}개 동기화`)
     } catch (error) {
+      setChatMembers([])
       appendLog(error instanceof Error ? error.message : '채팅 메시지 조회 실패')
     }
   }
 
-  function connectRealtime() {
+  function connectRealtime(targetRoomId = Number(roomId.trim())) {
     if (!canConnect) return
+    if (!Number.isFinite(targetRoomId) || targetRoomId <= 0) return
     clientRef.current?.deactivate()
     setStatus('connecting')
-    appendLog('STOMP 연결 시도')
+    appendLog('채팅 실시간 연결 시도')
 
-    const client = createRealtimeClient(accessToken.trim(), roomId, {
+    const client = createRealtimeClient(accessToken.trim(), String(targetRoomId), {
       onConnect: () => {
         setStatus('connected')
-        appendLog('STOMP 연결 성공')
+        appendLog('채팅 실시간 연결 완료')
         void loadNotifications()
       },
       onDisconnect: () => {
         setStatus('idle')
-        appendLog('STOMP 연결 종료')
+        appendLog('채팅 실시간 연결 종료')
       },
       onError: (errorMessage) => {
         setStatus('error')
@@ -514,15 +618,52 @@ function App() {
     setMessage('')
   }
 
+  if (!canConnect) {
+    return (
+      <main className="login-page">
+        <section className="login-card" aria-label="StudyWithMe 로그인">
+          <div className="brand login-brand">
+            <div className="brand-mark">S</div>
+            <div>
+              <strong>StudyWithMe</strong>
+            </div>
+          </div>
+          <div className="login-actions">
+            {oauthProviders.map((provider) => (
+              <button
+                className="primary"
+                key={provider.id}
+                type="button"
+                onClick={() => startOAuth(provider.id)}
+                disabled={!sessionChecked}
+              >
+                <LogIn size={17} />
+                {provider.label}로 로그인
+              </button>
+            ))}
+          </div>
+        </section>
+      </main>
+    )
+  }
+
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
+    <div className={isSidebarCollapsed ? 'app-shell sidebar-collapsed' : 'app-shell'}>
+      <aside className={isSidebarCollapsed ? 'sidebar collapsed' : 'sidebar'}>
         <div className="brand">
           <div className="brand-mark">S</div>
           <div>
             <strong>StudyWithMe</strong>
-            <span>community</span>
           </div>
+          <button
+            className="sidebar-toggle"
+            type="button"
+            onClick={() => setIsSidebarCollapsed((current) => !current)}
+            aria-label={isSidebarCollapsed ? '사이드 메뉴 펼치기' : '사이드 메뉴 접기'}
+            title={isSidebarCollapsed ? '펼치기' : '접기'}
+          >
+            {isSidebarCollapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
+          </button>
         </div>
 
         <nav className="nav-list" aria-label="main navigation">
@@ -551,10 +692,64 @@ function App() {
       <main className="workspace">
         <header className="topbar">
           <div>
-            <span className="eyebrow">Community workspace</span>
-            <h1>스터디 모집과 게시판 운영 콘솔</h1>
+            <span className="eyebrow">StudyWithMe</span>
+            <h1>{pageTitle()}</h1>
           </div>
           <div className="topbar-actions">
+            <div className="topbar-menu">
+              <button
+                className="notification-button"
+                type="button"
+                onClick={() => {
+                  setShowNotificationMenu((current) => !current)
+                  setShowProfileMenu(false)
+                  void loadNotifications()
+                }}
+                aria-label={`알림 ${unreadNotifications}개`}
+                aria-expanded={showNotificationMenu}
+                title="알림"
+              >
+                <Bell size={18} />
+                {unreadNotifications > 0 && (
+                  <span className="notification-badge">{unreadNotifications}</span>
+                )}
+              </button>
+              {showNotificationMenu && renderNotificationPopup()}
+            </div>
+            <div className="topbar-menu">
+              <button
+                className="profile-button"
+                type="button"
+                onClick={() => {
+                  setShowProfileMenu((current) => !current)
+                  setShowNotificationMenu(false)
+                }}
+                aria-label="프로필"
+                aria-expanded={showProfileMenu}
+                title="프로필"
+              >
+                <img src={profileImageSrc} alt="" />
+              </button>
+              {showProfileMenu && (
+                <div className="profile-menu" role="menu">
+                  <div className="profile-menu-header">
+                    <img src={profileImageSrc} alt="" />
+                    <div>
+                      <strong>{profile?.nickname ?? '프로필 확인 중'}</strong>
+                      <span>{profile?.email ?? '계정 정보를 불러오는 중입니다.'}</span>
+                    </div>
+                  </div>
+                  <button type="button" onClick={loadProfile}>
+                    <RefreshCw size={15} />
+                    프로필 새로고침
+                  </button>
+                  <button type="button" onClick={logout}>
+                    <LogOut size={15} />
+                    로그아웃
+                  </button>
+                </div>
+              )}
+            </div>
             <button
               className="dev-toggle-button"
               type="button"
@@ -573,39 +768,6 @@ function App() {
           </div>
         </header>
 
-        <section className="auth-strip" aria-label="oauth login controls">
-          <div className="auth-summary">
-            <ShieldCheck size={19} />
-            <div>
-              <strong>{authTitle()}</strong>
-              <span>
-                {canConnect && profile?.nickname
-                  ? `${profile.nickname}님으로 로그인했습니다.`
-                  : canConnect
-                  ? '로그인 세션이 준비되었습니다.'
-                  : !sessionChecked
-                  ? '저장된 로그인 세션을 확인하고 있습니다.'
-                  : '스터디 참여와 글 작성을 하려면 로그인하세요.'}
-              </span>
-            </div>
-          </div>
-          <div className="auth-actions">
-            {!canConnect &&
-              oauthProviders.map((provider) => (
-                <button key={provider.id} type="button" onClick={() => startOAuth(provider.id)}>
-                  <LogIn size={16} />
-                  {provider.label}
-                </button>
-              ))}
-            {canConnect && (
-              <button type="button" onClick={logout}>
-                <LogOut size={16} />
-                로그아웃
-              </button>
-            )}
-          </div>
-        </section>
-
         {showDevTools && (
           <section className="control-strip" aria-label="developer controls">
             <label>
@@ -613,7 +775,7 @@ function App() {
               <input
                 value={accessToken}
                 onChange={(event) => setAccessToken(event.target.value)}
-                placeholder="OAuth callback 또는 재발급으로 자동 입력됩니다"
+                placeholder="로그인 또는 재발급으로 자동 입력됩니다"
                 type="password"
               />
               <em className="dev-note">
@@ -637,111 +799,198 @@ function App() {
           </section>
         )}
 
+        {activeView === 'lobby' && renderLobby()}
         {activeView === 'studies' && renderStudies()}
         {activeView === 'posts' && renderPosts()}
         {activeView === 'chat' && renderChat()}
-        {activeView === 'notifications' && renderNotifications()}
       </main>
     </div>
   )
 
+  function renderLobby() {
+    return (
+      <div className="lobby-page">
+        <section className="lobby-hero">
+          <div>
+            <span className="eyebrow">Lobby</span>
+            <h2>
+              {profile?.nickname ? `${profile.nickname}님, 오늘의 스터디를 확인해 보세요.` : '오늘의 스터디를 확인해 보세요.'}
+            </h2>
+          </div>
+          <button className="primary" type="button" onClick={() => setActiveView('studies')}>
+            <BookOpen size={17} />
+            스터디 보러가기
+          </button>
+        </section>
+
+        <section className="lobby-metrics" aria-label="요약">
+          <article>
+            <strong>{recruitingStudies.length}</strong>
+            <span>모집 중인 스터디</span>
+          </article>
+          <article>
+            <strong>{posts.length}</strong>
+            <span>커뮤니티 글</span>
+          </article>
+          <article>
+            <strong>{chatRooms.length}</strong>
+            <span>참여 중인 채팅방</span>
+          </article>
+        </section>
+
+        <section className="lobby-actions" aria-label="주요 메뉴">
+          <button type="button" onClick={() => setActiveView('studies')}>
+            <BookOpen size={20} />
+            <strong>스터디</strong>
+          </button>
+          <button type="button" onClick={() => setActiveView('posts')}>
+            <Newspaper size={20} />
+            <strong>커뮤니티</strong>
+          </button>
+          <button type="button" onClick={() => setActiveView('chat')}>
+            <MessageSquareText size={20} />
+            <strong>채팅</strong>
+          </button>
+        </section>
+        {showDevTools && renderActivityPanel()}
+      </div>
+    )
+  }
+
   function renderStudies() {
     return (
-      <div className="workspace-grid">
-        <section className="main-column">
+      <section className="main-column study-page">
+        {studyBoardMode === 'list' && (
           <div className="section-heading">
             <div>
               <span className="eyebrow">Study</span>
-              <h2>스터디 모집</h2>
+              <h2>스터디</h2>
             </div>
-            <button className="icon-text-button" type="button" onClick={loadStudies}>
-              <RefreshCw size={16} />
-              새로고침
-            </button>
+            <div className="row-actions">
+              <button className="icon-text-button" type="button" onClick={loadStudies}>
+                <RefreshCw size={16} />
+                새로고침
+              </button>
+              <button
+                className="primary"
+                type="button"
+                onClick={() => {
+                  setStudyForm(emptyStudyForm)
+                  setSelectedStudy(null)
+                  setStudyBoardMode('write')
+                }}
+              >
+                <Plus size={16} />
+                스터디 만들기
+              </button>
+            </div>
           </div>
+        )}
 
-          <div className="item-list">
+        {studyBoardMode === 'list' && (
+          <div className="study-card-grid">
             {studies.length === 0 ? (
               <EmptyState icon={BookOpen} text="아직 등록된 스터디가 없습니다." />
             ) : (
-              studies.map((study) => (
-                <article className="list-row" key={study.id}>
-                  <div>
-                    <div className="row-title">
-                      <strong>{study.title}</strong>
-                      <span className={`state-chip ${study.status.toLowerCase()}`}>
-                        {study.status}
-                      </span>
+              studies.map((study) => {
+                const detail = parseStudyDescription(study.description)
+                const isRecruiting = isStudyRecruiting(study.status)
+                const isJoined = isStudyJoined(study.id)
+                const isSelected = selectedStudy?.id === study.id
+
+                return (
+                  <article className="study-card" key={study.id}>
+                    <button
+                      className="study-card-main"
+                      type="button"
+                      onClick={() => selectStudy(study.id)}
+                    >
+                      <div className="study-card-icon">
+                        {study.title.trim().slice(0, 1).toUpperCase() || 'S'}
+                      </div>
+                      <div>
+                        <div className="study-title-row">
+                          <strong>{study.title}</strong>
+                          <span
+                            className={`study-status-label ${isRecruiting ? '' : 'closed'}`}
+                          >
+                            {studyStatusLabel(study.status)}
+                          </span>
+                        </div>
+                        <span className="study-owner-label">{studyOwnerLabel(study)}</span>
+                      </div>
+                    </button>
+                    <dl className="study-summary">
+                      <div>
+                        <dt>진행</dt>
+                        <dd>{detail.method}</dd>
+                      </div>
+                      <div>
+                        <dt>대상</dt>
+                        <dd>{detail.target}</dd>
+                      </div>
+                    </dl>
+                    <div className="study-card-actions">
+                      {!isJoined && isRecruiting && (
+                        <button
+                          className="primary"
+                          type="button"
+                          onClick={() => mutateStudy(study.id, 'join')}
+                          disabled={!canConnect}
+                        >
+                          <CheckCircle2 size={16} />
+                          참여
+                        </button>
+                      )}
+                      {isJoined && (
+                        <>
+                          <button
+                            className="primary"
+                            type="button"
+                            onClick={() => openStudyChatRoom(study.id)}
+                            disabled={!canConnect}
+                          >
+                            <MessageSquareText size={16} />
+                            채팅
+                          </button>
+                          {!study.ownedByRequester && (
+                            <button
+                              type="button"
+                              onClick={() => mutateStudy(study.id, 'leave')}
+                              disabled={!canConnect}
+                            >
+                              탈퇴
+                            </button>
+                          )}
+                        </>
+                      )}
+                      {study.ownedByRequester && isRecruiting && (
+                        <button
+                          type="button"
+                          onClick={() => mutateStudy(study.id, 'close')}
+                          disabled={!canConnect}
+                        >
+                          마감하기
+                        </button>
+                      )}
+                      <button type="button" onClick={() => toggleStudyDetail(study.id)}>
+                        {isSelected ? '닫기' : '상세'}
+                      </button>
                     </div>
-                    <p>{study.description}</p>
-                    <span className="row-meta">
-                      owner #{study.ownerMemberId} · {formatTime(study.createdAt)}
-                    </span>
-                  </div>
-                  <div className="row-actions">
-                    <button type="button" onClick={() => selectStudy(study.id)}>
-                      상세
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => mutateStudy(study.id, 'join')}
-                      disabled={!canConnect || study.status !== 'OPEN'}
-                    >
-                      <CheckCircle2 size={16} />
-                      참여
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => mutateStudy(study.id, 'leave')}
-                      disabled={!canConnect}
-                    >
-                      <XCircle size={16} />
-                      탈퇴
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => mutateStudy(study.id, 'close')}
-                      disabled={!canConnect || study.status !== 'OPEN'}
-                    >
-                      마감
-                    </button>
-                  </div>
-                </article>
-              ))
+                  </article>
+                )
+              })
             )}
           </div>
-        </section>
+        )}
 
-        <aside className="side-column">
-          {selectedStudy && (
-            <section className="profile-panel">
-              <div className="section-heading compact">
-                <div>
-                  <span className="eyebrow">Selected study</span>
-                  <h2>{selectedStudy.title}</h2>
-                </div>
-                <span className={`state-chip ${selectedStudy.status.toLowerCase()}`}>
-                  {selectedStudy.status}
-                </span>
-              </div>
-              <p className="panel-copy">{selectedStudy.description}</p>
-              <span className="row-meta">
-                owner #{selectedStudy.ownerMemberId} · {formatTime(selectedStudy.createdAt)}
-              </span>
-              <button
-                className="primary wide panel-action"
-                type="button"
-                onClick={() => openStudyChatRoom(selectedStudy.id)}
-                disabled={!canConnect || selectedStudy.status !== 'OPEN'}
-              >
-                <MessageSquareText size={16} />
-                스터디 채팅방
-              </button>
-            </section>
-          )}
-          <section className="profile-panel">
+        {studyBoardMode === 'write' && (
+          <article className="study-editor">
             <div className="section-heading compact">
-              <h2>스터디 만들기</h2>
+              <div>
+                <span className="eyebrow">Create</span>
+                <h2>스터디 만들기</h2>
+              </div>
             </div>
             <div className="form-stack">
               <label>
@@ -755,111 +1004,199 @@ function App() {
                 />
               </label>
               <label>
-                <span>소개</span>
+                <span>진행 방식</span>
                 <textarea
-                  value={studyForm.description}
+                  value={studyForm.method}
                   onChange={(event) =>
-                    setStudyForm((current) => ({ ...current, description: event.target.value }))
+                    setStudyForm((current) => ({ ...current, method: event.target.value }))
                   }
-                  placeholder="진행 방식, 모집 대상, 규칙을 적어주세요."
+                  placeholder="예: 매주 화/목 21시에 온라인으로 진행"
                 />
               </label>
+              <label>
+                <span>모집 대상</span>
+                <textarea
+                  value={studyForm.target}
+                  onChange={(event) =>
+                    setStudyForm((current) => ({ ...current, target: event.target.value }))
+                  }
+                  placeholder="예: Java 기초를 끝내고 알고리즘을 시작하려는 사람"
+                />
+              </label>
+              <label>
+                <span>규칙</span>
+                <textarea
+                  value={studyForm.rules}
+                  onChange={(event) =>
+                    setStudyForm((current) => ({ ...current, rules: event.target.value }))
+                  }
+                  placeholder="예: 불참 시 전날 공유, 풀이 인증 필수"
+                />
+              </label>
+              <div className="row-actions editor-actions">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStudyForm(emptyStudyForm)
+                    setStudyBoardMode('list')
+                  }}
+                >
+                  취소
+                </button>
+                <button
+                  className="primary"
+                  type="button"
+                  onClick={submitStudy}
+                  disabled={
+                    !studyForm.title.trim() ||
+                    !studyForm.method.trim() ||
+                    !studyForm.target.trim() ||
+                    !studyForm.rules.trim()
+                  }
+                >
+                  <Plus size={16} />
+                  생성
+                </button>
+              </div>
+            </div>
+          </article>
+        )}
+
+        {studyBoardMode === 'list' && selectedStudy && (
+          <aside className="study-detail-panel">
+            <div className="section-heading compact">
+              <div>
+                <span className="eyebrow">Selected study</span>
+                <h2>{selectedStudy.title}</h2>
+              </div>
               <button
-                className="primary wide"
+                className="icon-button"
                 type="button"
-                onClick={submitStudy}
-                disabled={!canConnect}
+                onClick={() => setSelectedStudy(null)}
+                aria-label="스터디 상세 닫기"
+                title="닫기"
               >
-                <Plus size={16} />
-                생성
+                <X size={16} />
               </button>
             </div>
-          </section>
-          {renderProfilePanel()}
-          {showDevTools && renderActivityPanel()}
-        </aside>
-      </div>
+            <dl className="study-detail-list">
+              {renderStudyDetail('진행 방식', parseStudyDescription(selectedStudy.description).method)}
+              {renderStudyDetail('모집 대상', parseStudyDescription(selectedStudy.description).target)}
+              {renderStudyDetail('규칙', parseStudyDescription(selectedStudy.description).rules)}
+            </dl>
+            <span className="row-meta">
+              {studyOwnerLabel(selectedStudy)} · {formatTime(selectedStudy.createdAt)}
+            </span>
+            {isStudyJoined(selectedStudy.id) && (
+              <div className="row-actions detail-actions">
+                <button
+                  className="primary"
+                  type="button"
+                  onClick={() => openStudyChatRoom(selectedStudy.id)}
+                  disabled={!canConnect}
+                >
+                  <MessageSquareText size={16} />
+                  채팅방
+                </button>
+                {!selectedStudy.ownedByRequester && (
+                  <button
+                    type="button"
+                    onClick={() => mutateStudy(selectedStudy.id, 'leave')}
+                    disabled={!canConnect}
+                  >
+                    탈퇴
+                  </button>
+                )}
+              </div>
+            )}
+          </aside>
+        )}
+
+        {showDevTools && renderActivityPanel()}
+      </section>
     )
   }
 
   function renderPosts() {
     return (
-      <div className="workspace-grid posts-grid">
-        <section className="main-column">
-          <div className="section-heading">
-            <div>
-              <span className="eyebrow">Board</span>
-              <h2>커뮤니티 게시글</h2>
-            </div>
-            <button
-              className="icon-text-button"
-              type="button"
-              onClick={beginCreatePost}
-            >
+      <section className="main-column board-page">
+        <div className="section-heading">
+          <div>
+            <span className="eyebrow">Community</span>
+            <h2>커뮤니티</h2>
+          </div>
+          <div className="row-actions">
+            {postBoardMode !== 'list' && (
+              <button
+                className="icon-text-button"
+                type="button"
+                onClick={() => {
+                  setPostBoardMode('list')
+                  setEditingPostId(null)
+                }}
+              >
+                목록
+              </button>
+            )}
+            <button className="primary" type="button" onClick={beginCreatePost}>
               <Plus size={16} />
-              새 글
+              글쓰기
             </button>
           </div>
+        </div>
 
-          <div className="split-content">
-            <div className="post-list">
-              {posts.length === 0 ? (
-                <EmptyState icon={Newspaper} text="게시글이 없습니다." />
-              ) : (
-                posts.map((post) => (
-                  <button
-                    className={selectedPost?.id === post.id ? 'post-list-item active' : 'post-list-item'}
-                    key={post.id}
-                    type="button"
-                    onClick={() => {
-                      setEditingPostId(null)
-                      setPostForm(emptyPostForm)
-                      void selectPost(post.id)
-                    }}
-                  >
-                    <strong>{post.title}</strong>
-                    <span>
-                      #{post.id} · author #{post.authorMemberId}
-                    </span>
-                  </button>
-                ))
-              )}
-            </div>
+        <div className="community-board-tabs" aria-label="하위 게시판">
+          {communityBoards.map((board) => (
+            <button
+              className={selectedCommunityBoard === board.id ? 'active' : ''}
+              key={board.id}
+              type="button"
+              onClick={() => {
+                setSelectedCommunityBoard(board.id)
+                setPostBoardMode('list')
+                setEditingPostId(null)
+              }}
+            >
+              {board.label}
+            </button>
+          ))}
+        </div>
 
-            <article className="post-detail">
-              {selectedPost ? (
-                <>
-                  <div className="row-title">
-                    <h2>{selectedPost.title}</h2>
-                    <span className={`state-chip ${selectedPost.status.toLowerCase()}`}>
-                      {selectedPost.status}
-                    </span>
-                  </div>
-                  <p>{selectedPost.content}</p>
-                  <span className="row-meta">
-                    author #{selectedPost.authorMemberId} · {formatTime(selectedPost.createdAt)}
+        {postBoardMode === 'list' && (
+          <div className="board-list">
+            {posts.length === 0 ? (
+              <EmptyState icon={Newspaper} text="글이 없습니다." />
+            ) : (
+              posts.map((post) => (
+                <button
+                  className="board-row"
+                  key={post.id}
+                  type="button"
+                  onClick={() => {
+                    setEditingPostId(null)
+                    setPostForm(emptyPostForm)
+                    void selectPost(post.id)
+                  }}
+                >
+                  <span className={`state-chip ${post.status.toLowerCase()}`}>
+                    {post.status}
                   </span>
-                  <div className="post-actions">
-                    <button type="button" onClick={() => beginEditPost(selectedPost)}>
-                      수정 준비
-                    </button>
-                    <button type="button" onClick={removePost} disabled={!canConnect}>
-                      <Trash2 size={16} />
-                      삭제
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <EmptyState icon={Newspaper} text="게시글을 선택하거나 새 글을 작성하세요." />
-              )}
-            </article>
+                  <strong>{post.title}</strong>
+                  <span>작성자 #{post.authorMemberId}</span>
+                  <time>{formatTime(post.createdAt)}</time>
+                </button>
+              ))
+            )}
           </div>
-        </section>
+        )}
 
-        <aside className="side-column">
-          <section className="profile-panel">
+        {postBoardMode === 'write' && (
+          <article className="board-editor">
             <div className="section-heading compact">
-              <h2>{editingPostId ? '게시글 수정' : '게시글 작성'}</h2>
+              <div>
+                <span className="eyebrow">Write</span>
+                <h2>{editingPostId ? '글 수정' : '글 작성'}</h2>
+              </div>
             </div>
             <div className="form-stack">
               <label>
@@ -869,7 +1206,7 @@ function App() {
                   onChange={(event) =>
                     setPostForm((current) => ({ ...current, title: event.target.value }))
                   }
-                  placeholder="게시글 제목"
+                  placeholder="제목"
                 />
               </label>
               <label>
@@ -880,55 +1217,94 @@ function App() {
                   onChange={(event) =>
                     setPostForm((current) => ({ ...current, content: event.target.value }))
                   }
-                  placeholder="@닉네임 멘션도 테스트할 수 있습니다."
+                  placeholder="스터디 모집 후기, 질문, 공지 내용을 작성하세요."
                 />
               </label>
-              <button
-                className="primary wide"
-                type="button"
-                onClick={submitPost}
-                disabled={!canConnect}
-              >
-                <Send size={16} />
-                저장
-              </button>
-            </div>
-          </section>
-
-          <section className="notification-panel comments-panel">
-            <div className="section-heading compact">
-              <div>
-                <span className="eyebrow">Community</span>
-                <h2>댓글과 답글</h2>
+              <div className="row-actions editor-actions">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPostBoardMode(editingPostId && selectedPost ? 'detail' : 'list')
+                    setEditingPostId(null)
+                    setPostForm(emptyPostForm)
+                  }}
+                >
+                  취소
+                </button>
+                <button
+                  className="primary"
+                  type="button"
+                  onClick={submitPost}
+                  disabled={!postForm.title.trim() || !postForm.content.trim()}
+                >
+                  <Send size={16} />
+                  저장
+                </button>
               </div>
-              <span className="metric">{comments.length}</span>
             </div>
-            <div className="form-stack compact-form">
-              <textarea
-                value={commentText}
-                onChange={(event) => setCommentText(event.target.value)}
-                placeholder="댓글을 입력하세요."
-                disabled={!selectedPostId}
-              />
-              <button
-                className="primary wide"
-                type="button"
-                onClick={submitComment}
-                disabled={!canConnect || !selectedPostId}
-              >
-                댓글 작성
-              </button>
-            </div>
-            <div className="comment-list">
-              {topLevelComments.length === 0 ? (
-                <p className="muted">표시할 댓글이 없습니다.</p>
-              ) : (
-                topLevelComments.map((comment) => renderComment(comment))
-              )}
-            </div>
-          </section>
-        </aside>
-      </div>
+          </article>
+        )}
+
+        {postBoardMode === 'detail' && (
+          <article className="board-detail">
+            {selectedPost ? (
+              <>
+                <header className="board-detail-header">
+                  <span className={`state-chip ${selectedPost.status.toLowerCase()}`}>
+                    {selectedPost.status}
+                  </span>
+                  <h2>{selectedPost.title}</h2>
+                  <span className="row-meta">
+                    작성자 #{selectedPost.authorMemberId} · {formatTime(selectedPost.createdAt)}
+                  </span>
+                </header>
+                <p className="post-body">{selectedPost.content}</p>
+                <div className="post-actions">
+                  <button type="button" onClick={() => beginEditPost(selectedPost)}>
+                    수정
+                  </button>
+                  <button type="button" onClick={removePost}>
+                    <Trash2 size={16} />
+                    삭제
+                  </button>
+                </div>
+                <section className="comments-section" aria-label="댓글">
+                  <div className="section-heading compact">
+                    <div>
+                      <span className="eyebrow">Comments</span>
+                      <h2>댓글 {comments.length}</h2>
+                    </div>
+                  </div>
+                  <div className="comment-composer">
+                    <textarea
+                      value={commentText}
+                      onChange={(event) => setCommentText(event.target.value)}
+                      placeholder="댓글을 입력하세요."
+                    />
+                    <button
+                      className="primary"
+                      type="button"
+                      onClick={submitComment}
+                      disabled={!commentText.trim()}
+                    >
+                      댓글 작성
+                    </button>
+                  </div>
+                  <div className="comment-list">
+                    {topLevelComments.length === 0 ? (
+                      <p className="muted">첫 댓글을 남겨보세요.</p>
+                    ) : (
+                      topLevelComments.map((comment) => renderComment(comment))
+                    )}
+                  </div>
+                </section>
+              </>
+            ) : (
+              <EmptyState icon={Newspaper} text="목록에서 글을 선택하세요." />
+            )}
+          </article>
+        )}
+      </section>
     )
   }
 
@@ -966,64 +1342,129 @@ function App() {
   function renderChat() {
     return (
       <>
-        <section className="control-strip" aria-label="chat controls">
-          {showDevTools ? (
-            <>
-              <label className="room-field">
-                <span>Chat room</span>
-                <input
-                  value={roomId}
-                  onChange={(event) => setRoomId(event.target.value)}
-                  placeholder="roomId"
-                  inputMode="numeric"
-                />
-              </label>
-              <div className="control-actions">
-                <button
-                  className="primary"
-                  type="button"
-                  onClick={connectRealtime}
-                  disabled={!canConnect || status === 'connecting'}
-                >
-                  <Plug size={16} />
-                  연결
-                </button>
-                <button type="button" onClick={disconnectRealtime}>
-                  해제
-                </button>
-              </div>
-            </>
-          ) : (
-            <div className="auth-summary">
-              <MessageSquareText size={19} />
-              <div>
-                <strong>{roomId ? `채팅방 #${roomId}` : '채팅방을 선택하세요'}</strong>
-                <span>스터디 상세에서 채팅방을 열거나 내 채팅방 목록에서 선택하세요.</span>
-              </div>
+        {showDevTools && (
+          <section className="control-strip" aria-label="chat controls">
+            <label className="room-field">
+              <span>Chat room</span>
+              <input
+                value={roomId}
+                onChange={(event) => setRoomId(event.target.value)}
+                placeholder="roomId"
+                inputMode="numeric"
+              />
+            </label>
+            <div className="control-actions">
+              <button
+                className="primary"
+                type="button"
+                onClick={() => connectRealtime()}
+                disabled={!canConnect || status === 'connecting'}
+              >
+                <Plug size={16} />
+                연결
+              </button>
+              <button type="button" onClick={disconnectRealtime}>
+                해제
+              </button>
             </div>
-          )}
-        </section>
+          </section>
+        )}
 
-        <div className="workspace-grid">
-          <section className="main-column">
-            <div className="section-heading">
+        <section className="main-column chat-workspace">
+          <aside className="chat-room-column">
+            <div className="section-heading compact">
+              <div>
+                <span className="eyebrow">Rooms</span>
+                <h2>내 채팅방</h2>
+              </div>
+              <button
+                className="icon-button"
+                type="button"
+                onClick={() => loadChatRooms()}
+                disabled={!canConnect}
+                aria-label="채팅방 새로고침"
+                title="새로고침"
+              >
+                <RefreshCw size={16} />
+              </button>
+            </div>
+            <div className="room-list">
+              {chatRooms.length === 0 ? (
+                <p className="muted">참여 중인 채팅방이 없습니다.</p>
+              ) : (
+                chatRooms.map((room) => (
+                  <button
+                    className={roomId === String(room.id) ? 'room-list-item active' : 'room-list-item'}
+                    key={room.id}
+                    type="button"
+                    onClick={() => loadChatMessages(room.id)}
+                  >
+                    <strong>{chatRoomTitle(room, studies)}</strong>
+                  </button>
+                ))
+              )}
+            </div>
+          </aside>
+
+          <div className="chat-thread-column">
+            <div className="chat-thread-header">
               <div>
                 <span className="eyebrow">Chat</span>
                 <h2>{activeRoomLabel}</h2>
               </div>
-              <span className="metric">{chatMessages.length} messages</span>
+              <div className="row-actions">
+                <div className="chat-members-menu">
+                  <button
+                    className="icon-text-button"
+                    type="button"
+                    onClick={() => setShowChatMembers((current) => !current)}
+                    disabled={!roomId}
+                  >
+                    <Users size={16} />
+                    참여자
+                  </button>
+                  {showChatMembers && (
+                    <div className="chat-members-popover" role="dialog" aria-label="참여 멤버">
+                      <strong>참여 멤버</strong>
+                      {chatMembers.length === 0 ? (
+                        <p className="muted">아직 표시할 멤버가 없습니다.</p>
+                      ) : (
+                        <ul>
+                          {chatMembers.map((member) => (
+                            <li key={member.memberId}>
+                              <div className="avatar">
+                                {memberAvatarLabel(member.nickname, member.memberId)}
+                              </div>
+                              <span>
+                                {memberDisplayName(member.memberId, member.nickname, profile, activeProfileMemberId)}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             <div className="chat-panel">
               {chatMessages.length === 0 ? (
-                <EmptyState icon={MessageSquareText} text="방을 연결하고 메시지를 보내면 여기에 표시됩니다." />
+                <EmptyState icon={MessageSquareText} text="채팅방을 선택하세요." />
               ) : (
                 chatMessages.map((item, index) => (
                   <article className="message-row" key={`${item.id ?? 'local'}-${index}`}>
                     <div className="avatar">{String(item.senderMemberId).slice(-2)}</div>
                     <div>
                       <div className="message-meta">
-                        <strong>Member {item.senderMemberId}</strong>
+                        <strong>
+                          {memberDisplayName(
+                            item.senderMemberId,
+                            chatMembers.find((member) => member.memberId === item.senderMemberId)?.nickname,
+                            profile,
+                            activeProfileMemberId,
+                          )}
+                        </strong>
                         <span>{formatTime(item.createdAt)}</span>
                       </div>
                       <p>{item.content}</p>
@@ -1046,121 +1487,24 @@ function App() {
                 <Send size={18} />
               </button>
             </div>
-          </section>
-
-          <aside className="side-column">
-            <section className="profile-panel">
-              <div className="section-heading compact">
-                <div>
-                  <span className="eyebrow">Rooms</span>
-                  <h2>내 채팅방</h2>
-                </div>
-                <button
-                  className="icon-text-button"
-                  type="button"
-                  onClick={() => loadChatRooms()}
-                  disabled={!canConnect}
-                >
-                  <RefreshCw size={16} />
-                  새로고침
-                </button>
-              </div>
-              <div className="room-list">
-                {chatRooms.length === 0 ? (
-                  <p className="muted">참여 중인 채팅방이 없습니다.</p>
-                ) : (
-                  chatRooms.map((room) => (
-                    <button
-                      className={roomId === String(room.id) ? 'room-list-item active' : 'room-list-item'}
-                      key={room.id}
-                      type="button"
-                      onClick={() => loadChatMessages(room.id)}
-                    >
-                      <strong>{room.type === 'STUDY' ? '스터디 채팅' : '1:1 채팅'}</strong>
-                      <span>
-                        room #{room.id}
-                        {room.studyId ? ` · study #${room.studyId}` : ''}
-                      </span>
-                    </button>
-                  ))
-                )}
-              </div>
-              <button
-                className="primary wide panel-action"
-                type="button"
-                onClick={connectRealtime}
-                disabled={!canConnect || !roomId || status === 'connecting'}
-              >
-                <Plug size={16} />
-                실시간 참여
-              </button>
-            </section>
-            {renderProfilePanel()}
-            {renderNotificationPanel()}
-            {showDevTools && renderActivityPanel()}
-          </aside>
-        </div>
+          </div>
+        </section>
+        {showDevTools && renderActivityPanel()}
       </>
     )
   }
 
-  function renderNotifications() {
+  function renderNotificationPopup() {
     return (
-      <div className="workspace-grid">
-        <section className="main-column">
-          <div className="section-heading">
-            <div>
-              <span className="eyebrow">Notifications</span>
-              <h2>알림 수신함</h2>
-            </div>
-            <button
-              className="icon-text-button"
-              type="button"
-              onClick={loadNotifications}
-              disabled={!canConnect}
-            >
-              <RefreshCw size={16} />
-              동기화
-            </button>
-          </div>
-          {renderNotificationPanel()}
-        </section>
-        <aside className="side-column">
-          {renderProfilePanel()}
-          {showDevTools && renderActivityPanel()}
-        </aside>
-      </div>
-    )
-  }
-
-  function renderProfilePanel() {
-    return (
-      <section className="profile-panel">
-        <div className="section-heading compact">
-          <h2>내 상태</h2>
-        </div>
-        <div className="profile-row">
-          <div className="avatar large">
-            {profile?.nickname?.slice(0, 1).toUpperCase() ?? '?'}
-          </div>
+      <div className="notification-popover" role="dialog" aria-label="알림">
+        <div className="popover-header">
           <div>
-            <strong>{profile?.nickname ?? '인증 대기'}</strong>
-            <span>{profile?.email ?? '로그인하면 프로필이 표시됩니다.'}</span>
+            <h2>알림</h2>
+            <span>{notifications.length}개</span>
           </div>
-        </div>
-      </section>
-    )
-  }
-
-  function renderNotificationPanel() {
-    return (
-      <section className="notification-panel">
-        <div className="section-heading compact">
-          <div>
-            <span className="eyebrow">Notifications</span>
-            <h2>실시간 알림</h2>
-          </div>
-          <span className="metric">{notifications.length}</span>
+          <button type="button" onClick={loadNotifications}>
+            <RefreshCw size={15} />
+          </button>
         </div>
         <div className="notification-list">
           {notifications.length === 0 ? (
@@ -1179,7 +1523,7 @@ function App() {
             ))
           )}
         </div>
-      </section>
+      </div>
     )
   }
 
@@ -1201,10 +1545,11 @@ function App() {
     )
   }
 
-  function authTitle() {
-    if (!sessionChecked) return '세션 확인 중'
-    if (canConnect) return '로그인됨'
-    return 'OAuth 로그인 필요'
+  function pageTitle() {
+    if (activeView === 'lobby') return '홈'
+    if (activeView === 'studies') return '스터디'
+    if (activeView === 'posts') return '커뮤니티'
+    return '채팅'
   }
 }
 
@@ -1223,6 +1568,15 @@ function EmptyState({
   )
 }
 
+function renderStudyDetail(label: string, value: string) {
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
+  )
+}
+
 function formatTime(value?: string | null) {
   if (!value) return 'now'
   return new Intl.DateTimeFormat('ko-KR', {
@@ -1233,8 +1587,83 @@ function formatTime(value?: string | null) {
 
 function actionLabel(action: 'join' | 'leave' | 'close') {
   if (action === 'join') return '참여'
-  if (action === 'leave') return '탈퇴'
-  return '마감'
+  if (action === 'close') return '마감'
+  return '탈퇴'
+}
+
+function isStudyRecruiting(status: string) {
+  return recruitingStudyStatuses.has(status.toUpperCase())
+}
+
+function studyStatusLabel(status: string) {
+  return isStudyRecruiting(status) ? '모집중' : '마감'
+}
+
+function studyOwnerLabel(study: StudyItem) {
+  return study.ownerNickname ? `스터디장 ${study.ownerNickname}` : '스터디장'
+}
+
+function memberDisplayName(
+  memberId: number,
+  nickname: string | null | undefined,
+  profile: AuthProfile | null,
+  activeProfileMemberId: number | null,
+) {
+  if (activeProfileMemberId === memberId) {
+    return profile?.nickname ?? nickname ?? profile?.email ?? '나'
+  }
+  return nickname ?? `멤버 ${memberId}`
+}
+
+function memberAvatarLabel(nickname: string | null | undefined, memberId: number) {
+  return (nickname?.trim().slice(0, 1) || String(memberId).slice(-2)).toUpperCase()
+}
+
+function buildStudyDescription(form: typeof emptyStudyForm) {
+  return [
+    `진행 방식: ${form.method.trim()}`,
+    `모집 대상: ${form.target.trim()}`,
+    `규칙: ${form.rules.trim()}`,
+  ].join('\n')
+}
+
+function parseStudyDescription(description: string) {
+  const fallback = description.trim() || '등록된 내용이 없습니다.'
+  const lines = description.split('\n')
+  const detail = {
+    method: '',
+    target: '',
+    rules: '',
+  }
+
+  for (const line of lines) {
+    const [label, ...rest] = line.split(':')
+    const value = rest.join(':').trim()
+    if (label.trim() === '진행 방식') detail.method = value
+    if (label.trim() === '모집 대상') detail.target = value
+    if (label.trim() === '규칙') detail.rules = value
+  }
+
+  return {
+    method: detail.method || fallback,
+    target: detail.target || '제한 없음',
+    rules: detail.rules || '자율 운영',
+  }
+}
+
+function chatRoomTitle(room: ChatRoom, studies: StudyItem[]) {
+  if (room.title) return room.title
+  if (room.type === 'STUDY' && room.studyId) {
+    return studies.find((study) => study.id === room.studyId)?.title ?? '스터디 채팅'
+  }
+
+  return '1:1 채팅'
+}
+
+function avatarDataUrl(value: string) {
+  const label = (value.trim().slice(0, 1) || 'S').toUpperCase()
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80"><rect width="80" height="80" rx="40" fill="#24272d"/><text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" fill="white" font-family="Arial, sans-serif" font-size="34" font-weight="700">${label}</text></svg>`
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
 }
 
 export default App
