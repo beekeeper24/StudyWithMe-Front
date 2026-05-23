@@ -28,6 +28,7 @@ import './App.css'
 import { consumeOAuthCallback } from './auth'
 import {
   closeStudy,
+  completeSignup,
   createComment,
   createPost,
   createStudy,
@@ -153,6 +154,8 @@ function App() {
   const [nicknameDraft, setNicknameDraft] = useState('')
   const [nicknameError, setNicknameError] = useState('')
   const [isNicknameSaving, setIsNicknameSaving] = useState(false)
+  const [termsAgreed, setTermsAgreed] = useState(false)
+  const [privacyPolicyAgreed, setPrivacyPolicyAgreed] = useState(false)
   const [commentText, setCommentText] = useState('')
   const [replyDrafts, setReplyDrafts] = useState<Record<number, string>>({})
   const [showDevTools, setShowDevTools] = useState(false)
@@ -169,7 +172,9 @@ function App() {
   const clientRef = useRef<Client | null>(null)
 
   const canConnect = accessToken.trim().length > 0
-  const needsNickname = profile?.nicknameRequired === true
+  const needsSignup = profile?.signupRequired === true
+    || profile?.nicknameRequired === true
+    || profile?.termsAgreementRequired === true
   const selectedPostId = selectedPost?.id ?? null
   const profileImageSrc =
     profile?.profileImageUrl ?? avatarDataUrl(profile?.nickname ?? profile?.email ?? 'StudyWithMe')
@@ -216,7 +221,7 @@ function App() {
   )
 
   useEffect(() => {
-    if (!canConnect || needsNickname) return undefined
+    if (!canConnect || needsSignup) return undefined
     let cancelled = false
 
     async function loadInitialContent() {
@@ -237,7 +242,7 @@ function App() {
     return () => {
       cancelled = true
     }
-  }, [accessToken, appendLog, canConnect, needsNickname])
+  }, [accessToken, appendLog, canConnect, needsSignup])
 
   useEffect(() => {
     if (!initialOAuthToken) return undefined
@@ -250,7 +255,7 @@ function App() {
         if (!cancelled) {
           applyProfile(me)
         }
-        if (cancelled || me.nicknameRequired) return
+        if (cancelled || isSignupRequired(me)) return
 
         const [items, rooms, history] = await Promise.all([
           fetchNotifications(token),
@@ -288,7 +293,7 @@ function App() {
         const me = await fetchMe(token.accessToken)
         if (cancelled) return
         applyProfile(me)
-        if (me.nicknameRequired) return
+        if (isSignupRequired(me)) return
 
         const [items, history, rooms] = await Promise.all([
           fetchNotifications(token.accessToken),
@@ -353,6 +358,8 @@ function App() {
       setShowNotificationMenu(false)
       setShowProfileMenu(false)
       setShowChatMembers(false)
+      setTermsAgreed(false)
+      setPrivacyPolicyAgreed(false)
       setSessionChecked(true)
       appendLog('로그아웃 완료')
     } catch (error) {
@@ -389,6 +396,40 @@ function App() {
       await Promise.all([loadStudies(), loadMyStudies(), loadChatRooms()])
     } catch (error) {
       setNicknameError(error instanceof Error ? error.message : '별명 설정 실패')
+    } finally {
+      setIsNicknameSaving(false)
+    }
+  }
+
+  async function submitSignup() {
+    const nickname = nicknameDraft.trim()
+    if (!canConnect || isNicknameSaving) return
+    if (!isValidNickname(nickname)) {
+      setNicknameError('2~20자의 한글, 영문, 숫자, 밑줄만 사용할 수 있습니다.')
+      return
+    }
+    if (!termsAgreed || !privacyPolicyAgreed) {
+      setNicknameError('필수 약관에 모두 동의해야 가입할 수 있습니다.')
+      return
+    }
+
+    try {
+      setIsNicknameSaving(true)
+      setNicknameError('')
+      const updatedProfile = await completeSignup(
+        accessToken.trim(),
+        nickname,
+        termsAgreed,
+        privacyPolicyAgreed,
+      )
+      applyProfile(updatedProfile)
+      setTermsAgreed(false)
+      setPrivacyPolicyAgreed(false)
+      setActiveView('lobby')
+      appendLog('회원가입 완료')
+      await Promise.all([loadStudies(), loadMyStudies(), loadChatRooms()])
+    } catch (error) {
+      setNicknameError(error instanceof Error ? error.message : '회원가입 실패')
     } finally {
       setIsNicknameSaving(false)
     }
@@ -735,14 +776,14 @@ function App() {
     )
   }
 
-  if (needsNickname) {
+  if (needsSignup) {
     return (
       <main className="login-page">
-        <section className="nickname-card" aria-label="별명 설정">
+        <section className="signup-card" aria-label="회원가입">
           <div className="brand login-brand">
             <img className="nickname-profile-image" src={profileImageSrc} alt="" />
             <div>
-              <strong>별명 설정</strong>
+              <strong>회원가입</strong>
               <span>{profile?.email ?? 'StudyWithMe'}</span>
             </div>
           </div>
@@ -755,20 +796,53 @@ function App() {
                 setNicknameError('')
               }}
               onKeyDown={(event) => {
-                if (event.key === 'Enter') void submitNickname()
+                if (event.key === 'Enter' && termsAgreed && privacyPolicyAgreed) {
+                  void submitSignup()
+                }
               }}
               placeholder="예: 스터디왕"
               autoFocus
             />
           </label>
+          <div className="terms-checklist" aria-label="필수 약관">
+            <label className="terms-check">
+              <input
+                type="checkbox"
+                checked={termsAgreed}
+                onChange={(event) => {
+                  setTermsAgreed(event.target.checked)
+                  setNicknameError('')
+                }}
+              />
+              <span>서비스 이용약관 동의</span>
+              <em>필수</em>
+            </label>
+            <label className="terms-check">
+              <input
+                type="checkbox"
+                checked={privacyPolicyAgreed}
+                onChange={(event) => {
+                  setPrivacyPolicyAgreed(event.target.checked)
+                  setNicknameError('')
+                }}
+              />
+              <span>개인정보 처리방침 동의</span>
+              <em>필수</em>
+            </label>
+          </div>
           {nicknameError && <p className="form-error">{nicknameError}</p>}
           <button
             className="primary wide"
             type="button"
-            onClick={submitNickname}
-            disabled={isNicknameSaving || !nicknameDraft.trim()}
+            onClick={submitSignup}
+            disabled={
+              isNicknameSaving
+              || !nicknameDraft.trim()
+              || !termsAgreed
+              || !privacyPolicyAgreed
+            }
           >
-            저장
+            가입 완료
           </button>
         </section>
       </main>
@@ -1882,6 +1956,12 @@ function actionLabel(action: 'join' | 'leave' | 'close') {
 
 function isValidNickname(nickname: string) {
   return /^[가-힣A-Za-z0-9_]{2,20}$/.test(nickname)
+}
+
+function isSignupRequired(profile: AuthProfile) {
+  return profile.signupRequired === true
+    || profile.nicknameRequired === true
+    || profile.termsAgreementRequired === true
 }
 
 function isStudyRecruiting(status: string) {

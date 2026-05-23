@@ -57,6 +57,18 @@ export async function updateNickname(
   })
 }
 
+export async function completeSignup(
+  accessToken: string,
+  nickname: string,
+  termsAgreed: boolean,
+  privacyPolicyAgreed: boolean,
+): Promise<AuthProfile> {
+  return request<AuthProfile>('/api/v1/auth/me/signup', accessToken, {
+    method: 'PUT',
+    body: JSON.stringify({ nickname, termsAgreed, privacyPolicyAgreed }),
+  })
+}
+
 export async function fetchNotifications(
   accessToken: string,
 ): Promise<NotificationItem[]> {
