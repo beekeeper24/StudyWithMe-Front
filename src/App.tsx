@@ -20,6 +20,7 @@ import {
   Send,
   Settings2,
   Trash2,
+  User,
   Users,
   X,
 } from 'lucide-react'
@@ -31,12 +32,14 @@ import {
   createPost,
   createStudy,
   createStudyChatRoom,
+  deleteChatRoom,
   deletePost,
   fetchChatRoomMembers,
   fetchChatMessages,
   fetchChatRooms,
   fetchComments,
   fetchMe,
+  fetchMyStudies,
   fetchNotifications,
   fetchPost,
   fetchPosts,
@@ -63,6 +66,7 @@ import type {
   NotificationItem,
   OAuthProvider,
   PostItem,
+  StudyHistory,
   StudyItem,
   WorkspaceView,
 } from './types'
@@ -92,6 +96,7 @@ const initialOAuthToken = consumeOAuthCallback()
 
 const emptyStudyForm = { title: '', method: '', target: '', rules: '' }
 const emptyPostForm = { title: '', content: '' }
+const emptyStudyHistory: StudyHistory = { activeStudies: [], pastStudies: [] }
 type StudyBoardMode = 'list' | 'write'
 type PostBoardMode = 'list' | 'detail' | 'write'
 
@@ -132,6 +137,7 @@ function App() {
   const [chatMembers, setChatMembers] = useState<ChatRoomMember[]>([])
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [studies, setStudies] = useState<StudyItem[]>([])
+  const [myStudyHistory, setMyStudyHistory] = useState<StudyHistory>(emptyStudyHistory)
   const [selectedStudy, setSelectedStudy] = useState<StudyItem | null>(null)
   const [studyBoardMode, setStudyBoardMode] = useState<StudyBoardMode>('list')
   const [posts, setPosts] = useState<PostItem[]>([])
@@ -160,7 +166,8 @@ function App() {
 
   const canConnect = accessToken.trim().length > 0
   const selectedPostId = selectedPost?.id ?? null
-  const profileImageSrc = avatarDataUrl(profile?.nickname ?? profile?.email ?? 'StudyWithMe')
+  const profileImageSrc =
+    profile?.profileImageUrl ?? avatarDataUrl(profile?.nickname ?? profile?.email ?? 'StudyWithMe')
   const recruitingStudies = useMemo(
     () => studies.filter((study) => isStudyRecruiting(study.status)),
     [studies],
@@ -228,15 +235,17 @@ function App() {
     async function loadInitialProfile() {
       try {
         const token = initialOAuthToken?.accessToken ?? ''
-        const [me, items, rooms] = await Promise.all([
+        const [me, items, rooms, history] = await Promise.all([
           fetchMe(token),
           fetchNotifications(token),
           fetchChatRooms(token),
+          fetchMyStudies(token),
         ])
         if (!cancelled) {
           setProfile(me)
           setNotifications(items)
           setChatRooms(rooms)
+          setMyStudyHistory(history)
           appendLog('내 정보 조회 성공')
         }
       } catch (error) {
@@ -261,14 +270,16 @@ function App() {
         const token = await refreshAccessToken()
         if (cancelled) return
         applyToken(token)
-        const [me, items] = await Promise.all([
+        const [me, items, history] = await Promise.all([
           fetchMe(token.accessToken),
           fetchNotifications(token.accessToken),
+          fetchMyStudies(token.accessToken),
         ])
         const rooms = await fetchChatRooms(token.accessToken)
         if (cancelled) return
         setProfile(me)
         setNotifications(items)
+        setMyStudyHistory(history)
         setChatRooms(rooms)
         appendLog('세션 자동 복구 완료')
       } catch {
@@ -314,6 +325,7 @@ function App() {
       setChatMessages([])
       setChatMembers([])
       setStudies([])
+      setMyStudyHistory(emptyStudyHistory)
       setSelectedStudy(null)
       setStudyBoardMode('list')
       setPosts([])
@@ -375,6 +387,17 @@ function App() {
     }
   }
 
+  async function loadMyStudies(token = accessToken.trim()) {
+    if (!token) return
+    try {
+      const history = await fetchMyStudies(token)
+      setMyStudyHistory(history)
+      appendLog('내 스터디 이력 동기화')
+    } catch (error) {
+      appendLog(error instanceof Error ? error.message : '내 스터디 이력 조회 실패')
+    }
+  }
+
   async function selectStudy(studyId: number) {
     try {
       const item = await fetchVisibleStudy(studyId, accessToken.trim())
@@ -422,6 +445,7 @@ function App() {
       })
       setStudyForm(emptyStudyForm)
       await loadStudies()
+      await loadMyStudies()
       setSelectedStudy(created)
       setStudyBoardMode('list')
       appendLog('스터디 생성 완료')
@@ -439,7 +463,12 @@ function App() {
       if (action === 'close') await closeStudy(accessToken.trim(), studyId)
       await loadStudies()
       await loadChatRooms()
-      if (wasSelected) await selectStudy(studyId)
+      await loadMyStudies()
+      if (action === 'close') {
+        setSelectedStudy(null)
+      } else if (wasSelected) {
+        await selectStudy(studyId)
+      }
       appendLog(`스터디 ${actionLabel(action)} 완료`)
     } catch (error) {
       appendLog(error instanceof Error ? error.message : `스터디 ${actionLabel(action)} 실패`)
@@ -571,6 +600,24 @@ function App() {
     } catch (error) {
       setChatMembers([])
       appendLog(error instanceof Error ? error.message : '채팅 메시지 조회 실패')
+    }
+  }
+
+  async function removeChatRoom(targetRoom: ChatRoom) {
+    if (!canConnect) return
+    try {
+      await deleteChatRoom(accessToken.trim(), targetRoom.id)
+      if (roomId === String(targetRoom.id)) {
+        disconnectRealtime()
+        setRoomId('')
+        setChatMessages([])
+        setChatMembers([])
+        setShowChatMembers(false)
+      }
+      await loadChatRooms()
+      appendLog('채팅방 삭제 완료')
+    } catch (error) {
+      appendLog(error instanceof Error ? error.message : '채팅방 삭제 실패')
     }
   }
 
@@ -743,6 +790,17 @@ function App() {
                     <RefreshCw size={15} />
                     프로필 새로고침
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveView('mypage')
+                      setShowProfileMenu(false)
+                      void loadMyStudies()
+                    }}
+                  >
+                    <User size={15} />
+                    마이페이지
+                  </button>
                   <button type="button" onClick={logout}>
                     <LogOut size={15} />
                     로그아웃
@@ -803,6 +861,7 @@ function App() {
         {activeView === 'studies' && renderStudies()}
         {activeView === 'posts' && renderPosts()}
         {activeView === 'chat' && renderChat()}
+        {activeView === 'mypage' && renderMyPage()}
       </main>
     </div>
   )
@@ -1117,6 +1176,123 @@ function App() {
     )
   }
 
+  function renderMyPage() {
+    return (
+      <section className="main-column my-page">
+        <div className="section-heading">
+          <div>
+            <span className="eyebrow">My page</span>
+            <h2>마이페이지</h2>
+          </div>
+          <button className="icon-text-button" type="button" onClick={() => loadMyStudies()}>
+            <RefreshCw size={16} />
+            새로고침
+          </button>
+        </div>
+
+        <section className="profile-summary-card" aria-label="내 정보">
+          <img src={profileImageSrc} alt="" />
+          <div>
+            <strong>{profile?.nickname ?? '내 프로필'}</strong>
+            <span>{profile?.email ?? '계정 정보를 확인할 수 없습니다.'}</span>
+          </div>
+        </section>
+
+        <div className="study-history-grid">
+          <section className="history-section" aria-label="참여 중인 스터디">
+            <div className="section-heading compact">
+              <div>
+                <span className="eyebrow">Active</span>
+                <h2>참여 중인 스터디</h2>
+              </div>
+              <strong className="history-count">{myStudyHistory.activeStudies.length}</strong>
+            </div>
+            {renderStudyHistoryList(myStudyHistory.activeStudies, '참여 중인 스터디가 없습니다.', 'active')}
+          </section>
+
+          <section className="history-section" aria-label="지난 스터디">
+            <div className="section-heading compact">
+              <div>
+                <span className="eyebrow">History</span>
+                <h2>지난 스터디</h2>
+              </div>
+              <strong className="history-count">{myStudyHistory.pastStudies.length}</strong>
+            </div>
+            {renderStudyHistoryList(myStudyHistory.pastStudies, '지난 참여 이력이 없습니다.', 'past')}
+          </section>
+        </div>
+
+        {showDevTools && renderActivityPanel()}
+      </section>
+    )
+  }
+
+  function renderStudyHistoryList(
+    items: StudyItem[],
+    emptyText: string,
+    variant: 'active' | 'past',
+  ) {
+    if (items.length === 0) {
+      return <EmptyState icon={BookOpen} text={emptyText} />
+    }
+
+    return (
+      <div className="history-list">
+        {items.map((study) => {
+          const detail = parseStudyDescription(study.description)
+          const isRecruiting = isStudyRecruiting(study.status)
+          const isJoined = study.joinedByRequester === true
+
+          return (
+            <article className="history-row" key={`${variant}-${study.id}`}>
+              <button
+                className="history-row-main"
+                type="button"
+                onClick={() => {
+                  setActiveView('studies')
+                  void selectStudy(study.id)
+                }}
+              >
+                <div>
+                  <div className="study-title-row">
+                    <strong>{study.title}</strong>
+                    <span className={`study-status-label ${isRecruiting ? '' : 'closed'}`}>
+                      {studyStatusLabel(study.status)}
+                    </span>
+                  </div>
+                  <span>{studyOwnerLabel(study)} · {detail.method}</span>
+                </div>
+              </button>
+              <div className="history-row-actions">
+                {isJoined && (
+                  <button
+                    className="primary"
+                    type="button"
+                    onClick={() => openStudyChatRoom(study.id)}
+                    disabled={!canConnect}
+                  >
+                    <MessageSquareText size={15} />
+                    채팅
+                  </button>
+                )}
+                {variant === 'active' && study.ownedByRequester && isRecruiting && (
+                  <button type="button" onClick={() => mutateStudy(study.id, 'close')}>
+                    마감하기
+                  </button>
+                )}
+                {variant === 'active' && isJoined && !study.ownedByRequester && (
+                  <button type="button" onClick={() => mutateStudy(study.id, 'leave')}>
+                    탈퇴
+                  </button>
+                )}
+              </div>
+            </article>
+          )
+        })}
+      </div>
+    )
+  }
+
   function renderPosts() {
     return (
       <section className="main-column board-page">
@@ -1393,14 +1569,27 @@ function App() {
                 <p className="muted">참여 중인 채팅방이 없습니다.</p>
               ) : (
                 chatRooms.map((room) => (
-                  <button
-                    className={roomId === String(room.id) ? 'room-list-item active' : 'room-list-item'}
+                  <div
+                    className={roomId === String(room.id) ? 'room-list-entry active' : 'room-list-entry'}
                     key={room.id}
-                    type="button"
-                    onClick={() => loadChatMessages(room.id)}
                   >
-                    <strong>{chatRoomTitle(room, studies)}</strong>
-                  </button>
+                    <button
+                      className="room-list-item"
+                      type="button"
+                      onClick={() => loadChatMessages(room.id)}
+                    >
+                      <strong>{chatRoomTitle(room, studies)}</strong>
+                    </button>
+                    <button
+                      className="room-delete-button"
+                      type="button"
+                      onClick={() => removeChatRoom(room)}
+                      aria-label={`${chatRoomTitle(room, studies)} 삭제`}
+                      title="삭제"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
                 ))
               )}
             </div>
@@ -1549,6 +1738,7 @@ function App() {
     if (activeView === 'lobby') return '홈'
     if (activeView === 'studies') return '스터디'
     if (activeView === 'posts') return '커뮤니티'
+    if (activeView === 'mypage') return '마이페이지'
     return '채팅'
   }
 }
