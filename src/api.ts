@@ -47,6 +47,16 @@ export async function fetchMe(accessToken: string): Promise<AuthProfile> {
   return request<AuthProfile>('/api/v1/auth/me', accessToken)
 }
 
+export async function updateNickname(
+  accessToken: string,
+  nickname: string,
+): Promise<AuthProfile> {
+  return request<AuthProfile>('/api/v1/auth/me/nickname', accessToken, {
+    method: 'PUT',
+    body: JSON.stringify({ nickname }),
+  })
+}
+
 export async function fetchNotifications(
   accessToken: string,
 ): Promise<NotificationItem[]> {
