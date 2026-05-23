@@ -43,6 +43,12 @@ export async function logoutSession(): Promise<void> {
   })
 }
 
+export async function withdrawAccount(accessToken: string): Promise<void> {
+  await request<void>('/api/v1/auth/me', accessToken, {
+    method: 'DELETE',
+  })
+}
+
 export async function fetchMe(accessToken: string): Promise<AuthProfile> {
   return request<AuthProfile>('/api/v1/auth/me', accessToken)
 }

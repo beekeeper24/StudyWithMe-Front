@@ -911,6 +911,22 @@ button:focus-visible {
   background: #f2f4f6;
 }
 
+.danger-text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  margin-left: 4px;
+  color: #d92d20;
+  border: 1px solid #f3b7b0;
+  background: #fff7f6;
+}
+
+.danger-text-button:hover:not(:disabled) {
+  border-color: #e37b70;
+  background: #fff0ee;
+}
+
 .profile-summary-card img {
   width: 52px;
   height: 52px;
