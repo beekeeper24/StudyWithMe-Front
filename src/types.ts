@@ -53,6 +53,10 @@ export type AuthProfile = {
   nickname?: string
   profileImageUrl?: string | null
   nicknameRequired?: boolean
+  termsAgreementRequired?: boolean
+  signupRequired?: boolean
+  termsVersion?: string | null
+  privacyPolicyVersion?: string | null
 }
 
 export type StudyItem = {

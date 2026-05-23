@@ -46,8 +46,8 @@
   backdrop-filter: blur(18px);
 }
 
-.nickname-card {
-  width: min(100%, 420px);
+.signup-card {
+  width: min(100%, 440px);
   display: grid;
   gap: 16px;
   padding: 28px;
@@ -58,6 +58,40 @@
   background: rgba(255, 255, 255, 0.94);
   box-shadow: 0 18px 56px rgba(25, 31, 40, 0.1);
   backdrop-filter: blur(18px);
+}
+
+.terms-checklist {
+  display: grid;
+  gap: 8px;
+}
+
+.terms-check {
+  min-height: 44px;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid #e5e8eb;
+  border-radius: 10px;
+  background: #f8fafb;
+}
+
+.terms-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: #191f28;
+}
+
+.terms-check span {
+  color: #333d4b;
+  font-size: 14px;
+}
+
+.terms-check em {
+  color: #8b95a1;
+  font-size: 12px;
+  font-style: normal;
 }
 
 .nickname-profile-image {
