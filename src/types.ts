@@ -2,7 +2,7 @@ export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'error'
 
 export type OAuthProvider = 'google' | 'kakao'
 
-export type WorkspaceView = 'studies' | 'posts' | 'chat' | 'notifications'
+export type WorkspaceView = 'lobby' | 'studies' | 'posts' | 'chat'
 
 export type AccessTokenResponse = {
   accessToken: string
@@ -22,7 +22,15 @@ export type ChatRoom = {
   id: number
   type: string
   studyId?: number | null
+  title?: string | null
   createdAt?: string
+}
+
+export type ChatRoomMember = {
+  memberId: number
+  nickname?: string | null
+  profileImageUrl?: string | null
+  joinedAt?: string
 }
 
 export type NotificationItem = {
@@ -48,9 +56,13 @@ export type AuthProfile = {
 export type StudyItem = {
   id: number
   ownerMemberId: number
+  ownerNickname?: string | null
+  ownerProfileImageUrl?: string | null
   title: string
   description: string
   status: string
+  joinedByRequester?: boolean
+  ownedByRequester?: boolean
   createdAt?: string
   updatedAt?: string
 }
