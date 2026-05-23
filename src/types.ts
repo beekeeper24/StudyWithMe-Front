@@ -2,7 +2,7 @@ export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'error'
 
 export type OAuthProvider = 'google' | 'kakao'
 
-export type WorkspaceView = 'lobby' | 'studies' | 'posts' | 'chat'
+export type WorkspaceView = 'lobby' | 'studies' | 'posts' | 'chat' | 'mypage'
 
 export type AccessTokenResponse = {
   accessToken: string
@@ -51,6 +51,7 @@ export type AuthProfile = {
   memberId?: number
   email?: string
   nickname?: string
+  profileImageUrl?: string | null
 }
 
 export type StudyItem = {
@@ -65,6 +66,11 @@ export type StudyItem = {
   ownedByRequester?: boolean
   createdAt?: string
   updatedAt?: string
+}
+
+export type StudyHistory = {
+  activeStudies: StudyItem[]
+  pastStudies: StudyItem[]
 }
 
 export type PostItem = {

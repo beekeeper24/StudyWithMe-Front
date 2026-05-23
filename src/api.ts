@@ -9,6 +9,7 @@ import type {
   NotificationItem,
   OAuthProvider,
   PostItem,
+  StudyHistory,
   StudyItem,
 } from './types'
 
@@ -56,6 +57,12 @@ export async function fetchChatRooms(accessToken: string): Promise<ChatRoom[]> {
   return request<ChatRoom[]>('/api/v1/chat/rooms', accessToken)
 }
 
+export async function deleteChatRoom(accessToken: string, roomId: number): Promise<void> {
+  await request<void>(`/api/v1/chat/rooms/${roomId}`, accessToken, {
+    method: 'DELETE',
+  })
+}
+
 export async function createStudyChatRoom(
   accessToken: string,
   studyId: number,
@@ -81,6 +88,10 @@ export async function fetchChatRoomMembers(
 
 export async function fetchStudies(accessToken?: string): Promise<StudyItem[]> {
   return request<StudyItem[]>('/api/v1/studies', accessToken)
+}
+
+export async function fetchMyStudies(accessToken: string): Promise<StudyHistory> {
+  return request<StudyHistory>('/api/v1/studies/me', accessToken)
 }
 
 export async function fetchStudy(studyId: number, accessToken?: string): Promise<StudyItem> {
