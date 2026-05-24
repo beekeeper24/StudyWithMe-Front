@@ -162,6 +162,7 @@ function App() {
   const [showDevTools, setShowDevTools] = useState(false)
   const [showNotificationMenu, setShowNotificationMenu] = useState(false)
   const [showProfileMenu, setShowProfileMenu] = useState(false)
+  const [showAccountManagementModal, setShowAccountManagementModal] = useState(false)
   const [showChatMembers, setShowChatMembers] = useState(false)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [sessionChecked, setSessionChecked] = useState(Boolean(initialOAuthToken))
@@ -244,6 +245,19 @@ function App() {
       cancelled = true
     }
   }, [accessToken, appendLog, canConnect, needsSignup])
+
+  useEffect(() => {
+    if (!showAccountManagementModal) return undefined
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setShowAccountManagementModal(false)
+      }
+    }
+
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [showAccountManagementModal])
 
   useEffect(() => {
     if (!initialOAuthToken) return undefined
@@ -383,6 +397,7 @@ function App() {
     setPostBoardMode('list')
     setShowNotificationMenu(false)
     setShowProfileMenu(false)
+    setShowAccountManagementModal(false)
     setShowChatMembers(false)
     setTermsAgreed(false)
     setPrivacyPolicyAgreed(false)
@@ -978,6 +993,16 @@ function App() {
                     <User size={15} />
                     마이페이지
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAccountManagementModal(true)
+                      setShowProfileMenu(false)
+                    }}
+                  >
+                    <Settings2 size={15} />
+                    계정 관리
+                  </button>
                   <button type="button" onClick={logout}>
                     <LogOut size={15} />
                     로그아웃
@@ -1039,6 +1064,7 @@ function App() {
         {activeView === 'posts' && renderPosts()}
         {activeView === 'chat' && renderChat()}
         {activeView === 'mypage' && renderMyPage()}
+        {showAccountManagementModal && renderAccountManagementModal()}
       </main>
     </div>
   )
@@ -1369,68 +1395,18 @@ function App() {
 
         <section className="profile-summary-card" aria-label="내 정보">
           <img src={profileImageSrc} alt="" />
-          <div>
+          <div className="profile-summary-main">
             <strong>{profile?.nickname ?? '내 프로필'}</strong>
             <span>{profile?.email ?? '계정 정보를 확인할 수 없습니다.'}</span>
           </div>
-        </section>
-
-        <section className="account-management-section" aria-label="계정 관리">
-          <div className="section-heading compact">
-            <div>
-              <span className="eyebrow">Account</span>
-              <h2>계정 관리</h2>
-            </div>
+          <button
+            className="icon-text-button profile-manage-button"
+            type="button"
+            onClick={() => setShowAccountManagementModal(true)}
+          >
             <Settings2 size={18} />
-          </div>
-          <div className="account-setting-list">
-            <div className="account-setting-row">
-              <div className="account-setting-main">
-                <strong>이메일</strong>
-                <span>{profile?.email ?? '계정 정보를 확인할 수 없습니다.'}</span>
-              </div>
-            </div>
-            <div className="account-setting-row">
-              <div className="account-setting-main">
-                <strong>별명</strong>
-                <span>{profile?.nickname ?? '별명을 설정해 주세요.'}</span>
-              </div>
-              <div className="nickname-edit-form">
-                <input
-                  value={nicknameDraft}
-                  onChange={(event) => {
-                    setNicknameDraft(event.target.value)
-                    setNicknameError('')
-                  }}
-                  placeholder="별명"
-                  aria-label="별명"
-                />
-                <button
-                  type="button"
-                  onClick={submitNickname}
-                  disabled={isNicknameSaving || !nicknameDraft.trim()}
-                >
-                  저장
-                </button>
-              </div>
-            </div>
-            {nicknameError && <p className="form-error inline">{nicknameError}</p>}
-            <div className="account-setting-row danger-zone">
-              <div className="account-setting-main">
-                <strong>회원 탈퇴</strong>
-                <span>탈퇴 후 같은 OAuth 계정으로 다시 가입할 수 있습니다.</span>
-              </div>
-              <button
-                className="danger-text-button"
-                type="button"
-                onClick={withdrawCurrentAccount}
-                disabled={isNicknameSaving}
-              >
-                <Trash2 size={15} />
-                회원 탈퇴
-              </button>
-            </div>
-          </div>
+            계정 관리
+          </button>
         </section>
 
         <div className="study-history-grid">
@@ -1459,6 +1435,89 @@ function App() {
 
         {showDevTools && renderActivityPanel()}
       </section>
+    )
+  }
+
+  function renderAccountManagementModal() {
+    return (
+      <div
+        className="modal-backdrop"
+        role="presentation"
+        onMouseDown={() => setShowAccountManagementModal(false)}
+      >
+        <section
+          className="account-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="account-management-title"
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <div className="account-modal-header">
+            <div>
+              <span className="eyebrow">Account</span>
+              <h2 id="account-management-title">계정 관리</h2>
+            </div>
+            <button
+              className="icon-button"
+              type="button"
+              aria-label="계정 관리 닫기"
+              onClick={() => setShowAccountManagementModal(false)}
+            >
+              <X size={18} />
+            </button>
+          </div>
+          <div className="account-management-section" aria-label="계정 설정">
+            <div className="account-setting-list">
+              <div className="account-setting-row">
+                <div className="account-setting-main">
+                  <strong>이메일</strong>
+                  <span>{profile?.email ?? '계정 정보를 확인할 수 없습니다.'}</span>
+                </div>
+              </div>
+              <div className="account-setting-row">
+                <div className="account-setting-main">
+                  <strong>별명</strong>
+                  <span>{profile?.nickname ?? '별명을 설정해 주세요.'}</span>
+                </div>
+                <div className="nickname-edit-form">
+                  <input
+                    value={nicknameDraft}
+                    onChange={(event) => {
+                      setNicknameDraft(event.target.value)
+                      setNicknameError('')
+                    }}
+                    placeholder="별명"
+                    aria-label="별명"
+                  />
+                  <button
+                    type="button"
+                    onClick={submitNickname}
+                    disabled={isNicknameSaving || !nicknameDraft.trim()}
+                  >
+                    저장
+                  </button>
+                </div>
+              </div>
+              {nicknameError && <p className="form-error inline">{nicknameError}</p>}
+              <div className="account-setting-row danger-zone">
+                <div className="account-setting-main">
+                  <strong>회원 탈퇴</strong>
+                  <span>탈퇴 후 같은 OAuth 계정으로 다시 가입할 수 있습니다.</span>
+                </div>
+                <button
+                  className="danger-text-button"
+                  type="button"
+                  onClick={withdrawCurrentAccount}
+                  disabled={isNicknameSaving}
+                >
+                  <Trash2 size={15} />
+                  회원 탈퇴
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
     )
   }
 
