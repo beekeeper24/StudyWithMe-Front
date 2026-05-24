@@ -994,6 +994,37 @@ button:focus-visible {
   color: #b42318;
 }
 
+.withdrawal-confirm-panel {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border-top: 1px solid #fde2dd;
+  background: #fff7f6;
+}
+
+.withdrawal-confirm-panel strong {
+  color: #b42318;
+  font-size: 14px;
+}
+
+.withdrawal-confirm-panel span {
+  color: #6b7684;
+  font-size: 13px;
+}
+
+.withdrawal-confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.withdrawal-confirm-actions button {
+  color: #4e5968;
+  background: #ffffff;
+}
+
 .nickname-edit-form {
   display: grid;
   grid-template-columns: minmax(160px, 220px) 64px;
