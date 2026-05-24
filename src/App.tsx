@@ -363,7 +363,7 @@ function App() {
 
   async function withdrawCurrentAccount() {
     if (!canConnect || isNicknameSaving) return
-    const confirmed = window.confirm('회원 탈퇴 후 같은 OAuth 계정으로 다시 가입할 수 있습니다. 계속할까요?')
+    const confirmed = window.confirm('정말 회원 탈퇴를 진행할까요?')
     if (!confirmed) return
 
     try {
@@ -993,16 +993,6 @@ function App() {
                     <User size={15} />
                     마이페이지
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowAccountManagementModal(true)
-                      setShowProfileMenu(false)
-                    }}
-                  >
-                    <Settings2 size={15} />
-                    계정 관리
-                  </button>
                   <button type="button" onClick={logout}>
                     <LogOut size={15} />
                     로그아웃
@@ -1502,7 +1492,6 @@ function App() {
               <div className="account-setting-row danger-zone">
                 <div className="account-setting-main">
                   <strong>회원 탈퇴</strong>
-                  <span>탈퇴 후 같은 OAuth 계정으로 다시 가입할 수 있습니다.</span>
                 </div>
                 <button
                   className="danger-text-button"
