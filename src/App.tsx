@@ -1755,7 +1755,7 @@ function App() {
                     마감하기
                   </button>
                 )}
-                {variant === 'active' && isJoined && !study.ownedByRequester && (
+                {isJoined && !study.ownedByRequester && (
                   <button type="button" onClick={() => mutateStudy(study.id, 'leave')}>
                     탈퇴
                   </button>
