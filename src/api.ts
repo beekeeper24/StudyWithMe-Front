@@ -140,7 +140,14 @@ export async function fetchStudy(studyId: number, accessToken?: string): Promise
 
 export async function createStudy(
   accessToken: string,
-  payload: { title: string; description: string },
+  payload: {
+    title: string
+    progressMethod: string
+    targetAudience: string
+    rules: string
+    capacity: number
+    schedule: string
+  },
 ): Promise<StudyItem> {
   return request<StudyItem>('/api/v1/studies', accessToken, {
     method: 'POST',

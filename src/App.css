@@ -1324,6 +1324,12 @@ button:focus-visible {
   min-height: 92px;
 }
 
+.study-editor-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 140px) minmax(0, 1fr);
+  gap: 12px;
+}
+
 .study-detail-panel {
   margin-top: 18px;
   padding: 18px;
@@ -2009,6 +2015,10 @@ button:focus-visible {
 
   .row-actions {
     justify-content: flex-start;
+  }
+
+  .study-editor-grid {
+    grid-template-columns: 1fr;
   }
 
   .board-row {
