@@ -99,7 +99,14 @@ const oauthProviders: Array<{ id: OAuthProvider; label: string }> = [
 
 const initialOAuthToken = consumeOAuthCallback()
 
-const emptyStudyForm = { title: '', method: '', target: '', rules: '' }
+const emptyStudyForm = {
+  title: '',
+  progressMethod: '',
+  targetAudience: '',
+  rules: '',
+  capacity: '',
+  schedule: '',
+}
 const emptyPostForm = { title: '', content: '' }
 const emptyStudyHistory: StudyHistory = { activeStudies: [], pastStudies: [] }
 type StudyBoardMode = 'list' | 'write'
@@ -603,16 +610,27 @@ function App() {
     if (
       !canConnect ||
       !studyForm.title.trim() ||
-      !studyForm.method.trim() ||
-      !studyForm.target.trim() ||
-      !studyForm.rules.trim()
+      !studyForm.progressMethod.trim() ||
+      !studyForm.targetAudience.trim() ||
+      !studyForm.rules.trim() ||
+      !studyForm.capacity.trim() ||
+      !studyForm.schedule.trim()
     ) {
+      return
+    }
+    const capacity = Number(studyForm.capacity)
+    if (!Number.isInteger(capacity) || capacity < 1) {
+      showToast('error', '정원은 1명 이상으로 입력해 주세요.')
       return
     }
     try {
       const created = await createStudy(accessToken.trim(), {
         title: studyForm.title.trim(),
-        description: buildStudyDescription(studyForm),
+        progressMethod: studyForm.progressMethod.trim(),
+        targetAudience: studyForm.targetAudience.trim(),
+        rules: studyForm.rules.trim(),
+        capacity,
+        schedule: studyForm.schedule.trim(),
       })
       setStudyForm(emptyStudyForm)
       await loadStudies()
@@ -1233,7 +1251,7 @@ function App() {
               <EmptyState icon={BookOpen} text="아직 등록된 스터디가 없습니다." />
             ) : (
               studies.map((study) => {
-                const detail = parseStudyDescription(study.description)
+                const detail = studyDetail(study)
                 const isRecruiting = isStudyRecruiting(study.status)
                 const isJoined = isStudyJoined(study.id)
                 const isSelected = selectedStudy?.id === study.id
@@ -1263,11 +1281,11 @@ function App() {
                     <dl className="study-summary">
                       <div>
                         <dt>진행</dt>
-                        <dd>{detail.method}</dd>
+                        <dd>{detail.progressMethod}</dd>
                       </div>
                       <div>
-                        <dt>대상</dt>
-                        <dd>{detail.target}</dd>
+                        <dt>정원</dt>
+                        <dd>{detail.capacity}</dd>
                       </div>
                     </dl>
                     <div className="study-card-actions">
@@ -1346,9 +1364,9 @@ function App() {
               <label>
                 <span>진행 방식</span>
                 <textarea
-                  value={studyForm.method}
+                  value={studyForm.progressMethod}
                   onChange={(event) =>
-                    setStudyForm((current) => ({ ...current, method: event.target.value }))
+                    setStudyForm((current) => ({ ...current, progressMethod: event.target.value }))
                   }
                   placeholder="예: 매주 화/목 21시에 온라인으로 진행"
                 />
@@ -1356,13 +1374,38 @@ function App() {
               <label>
                 <span>모집 대상</span>
                 <textarea
-                  value={studyForm.target}
+                  value={studyForm.targetAudience}
                   onChange={(event) =>
-                    setStudyForm((current) => ({ ...current, target: event.target.value }))
+                    setStudyForm((current) => ({ ...current, targetAudience: event.target.value }))
                   }
                   placeholder="예: Java 기초를 끝내고 알고리즘을 시작하려는 사람"
                 />
               </label>
+              <div className="study-editor-grid">
+                <label>
+                  <span>정원</span>
+                  <input
+                    inputMode="numeric"
+                    min={1}
+                    type="number"
+                    value={studyForm.capacity}
+                    onChange={(event) =>
+                      setStudyForm((current) => ({ ...current, capacity: event.target.value }))
+                    }
+                    placeholder="예: 6"
+                  />
+                </label>
+                <label>
+                  <span>일정</span>
+                  <input
+                    value={studyForm.schedule}
+                    onChange={(event) =>
+                      setStudyForm((current) => ({ ...current, schedule: event.target.value }))
+                    }
+                    placeholder="예: 매주 화요일 21:00"
+                  />
+                </label>
+              </div>
               <label>
                 <span>규칙</span>
                 <textarea
@@ -1389,9 +1432,11 @@ function App() {
                   onClick={submitStudy}
                   disabled={
                     !studyForm.title.trim() ||
-                    !studyForm.method.trim() ||
-                    !studyForm.target.trim() ||
-                    !studyForm.rules.trim()
+                    !studyForm.progressMethod.trim() ||
+                    !studyForm.targetAudience.trim() ||
+                    !studyForm.rules.trim() ||
+                    !studyForm.capacity.trim() ||
+                    !studyForm.schedule.trim()
                   }
                 >
                   <Plus size={16} />
@@ -1420,9 +1465,11 @@ function App() {
               </button>
             </div>
             <dl className="study-detail-list">
-              {renderStudyDetail('진행 방식', parseStudyDescription(selectedStudy.description).method)}
-              {renderStudyDetail('모집 대상', parseStudyDescription(selectedStudy.description).target)}
-              {renderStudyDetail('규칙', parseStudyDescription(selectedStudy.description).rules)}
+              {renderStudyDetail('진행 방식', studyDetail(selectedStudy).progressMethod)}
+              {renderStudyDetail('모집 대상', studyDetail(selectedStudy).targetAudience)}
+              {renderStudyDetail('정원', studyDetail(selectedStudy).capacity)}
+              {renderStudyDetail('일정', studyDetail(selectedStudy).schedule)}
+              {renderStudyDetail('규칙', studyDetail(selectedStudy).rules)}
             </dl>
             <span className="row-meta">
               {studyOwnerLabel(selectedStudy)} · {formatTime(selectedStudy.createdAt)}
@@ -1629,7 +1676,7 @@ function App() {
     return (
       <div className="history-list">
         {items.map((study) => {
-          const detail = parseStudyDescription(study.description)
+          const detail = studyDetail(study)
           const isRecruiting = isStudyRecruiting(study.status)
           const isJoined = study.joinedByRequester === true
 
@@ -1650,7 +1697,7 @@ function App() {
                       {studyStatusLabel(study.status)}
                     </span>
                   </div>
-                  <span>{studyOwnerLabel(study)} · {detail.method}</span>
+                  <span>{studyOwnerLabel(study)} · {detail.progressMethod}</span>
                 </div>
               </button>
               <div className="history-row-actions">
@@ -2268,14 +2315,6 @@ function memberAvatarLabel(nickname: string | null | undefined, memberId: number
   return (nickname?.trim().slice(0, 1) || String(memberId).slice(-2)).toUpperCase()
 }
 
-function buildStudyDescription(form: typeof emptyStudyForm) {
-  return [
-    `진행 방식: ${form.method.trim()}`,
-    `모집 대상: ${form.target.trim()}`,
-    `규칙: ${form.rules.trim()}`,
-  ].join('\n')
-}
-
 function parseStudyDescription(description: string) {
   const fallback = description.trim() || '등록된 내용이 없습니다.'
   const lines = description.split('\n')
@@ -2294,9 +2333,20 @@ function parseStudyDescription(description: string) {
   }
 
   return {
-    method: detail.method || fallback,
-    target: detail.target || '제한 없음',
+    progressMethod: detail.method || fallback,
+    targetAudience: detail.target || '제한 없음',
     rules: detail.rules || '자율 운영',
+  }
+}
+
+function studyDetail(study: StudyItem) {
+  const legacy = parseStudyDescription(study.description)
+  return {
+    progressMethod: study.progressMethod?.trim() || legacy.progressMethod,
+    targetAudience: study.targetAudience?.trim() || legacy.targetAudience,
+    rules: study.rules?.trim() || legacy.rules,
+    capacity: study.capacity != null ? `${study.capacity}명` : '협의',
+    schedule: study.schedule?.trim() || '협의',
   }
 }
 

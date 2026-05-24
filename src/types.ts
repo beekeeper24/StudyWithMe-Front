@@ -66,6 +66,11 @@ export type StudyItem = {
   ownerProfileImageUrl?: string | null
   title: string
   description: string
+  progressMethod?: string | null
+  targetAudience?: string | null
+  rules?: string | null
+  capacity?: number | null
+  schedule?: string | null
   status: string
   joinedByRequester?: boolean
   ownedByRequester?: boolean
