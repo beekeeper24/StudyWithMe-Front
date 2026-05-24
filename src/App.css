@@ -899,8 +899,54 @@ button:focus-visible {
   background: #fbfcfd;
 }
 
+.account-management-section {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.account-setting-list {
+  overflow: hidden;
+  border: 1px solid #edf0f3;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.account-setting-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 15px 16px;
+  border-bottom: 1px solid #edf0f3;
+}
+
+.account-setting-row:last-child {
+  border-bottom: 0;
+}
+
+.account-setting-main strong {
+  display: block;
+  color: #191f28;
+  font-size: 14px;
+}
+
+.account-setting-main span {
+  display: block;
+  margin-top: 4px;
+  color: #6b7684;
+  font-size: 13px;
+}
+
+.danger-zone {
+  background: #fffafa;
+}
+
+.danger-zone .account-setting-main strong {
+  color: #b42318;
+}
+
 .nickname-edit-form {
-  margin-left: auto;
   display: grid;
   grid-template-columns: minmax(160px, 220px) 64px;
   gap: 8px;
@@ -916,7 +962,6 @@ button:focus-visible {
   align-items: center;
   gap: 6px;
   min-height: 36px;
-  margin-left: 4px;
   color: #d92d20;
   border: 1px solid #f3b7b0;
   background: #fff7f6;
@@ -1625,9 +1670,14 @@ button:focus-visible {
     flex-direction: column;
   }
 
+  .account-setting-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    gap: 12px;
+  }
+
   .nickname-edit-form {
     width: 100%;
-    margin-left: 0;
     grid-template-columns: minmax(0, 1fr) 64px;
   }
 }
