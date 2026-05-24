@@ -899,10 +899,58 @@ button:focus-visible {
   background: #fbfcfd;
 }
 
+.profile-summary-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.profile-manage-button {
+  margin-left: auto;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(25, 31, 40, 0.32);
+}
+
+.account-modal {
+  width: min(560px, 100%);
+  max-height: calc(100dvh - 48px);
+  overflow: auto;
+  border: 1px solid #e5e8eb;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 24px 70px rgba(25, 31, 40, 0.22);
+}
+
+.account-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 18px 14px;
+  border-bottom: 1px solid #edf0f3;
+}
+
+.account-modal-header h2 {
+  font-size: 18px;
+}
+
+.account-modal-header .icon-button {
+  color: #4e5968;
+  background: #f2f4f6;
+}
+
 .account-management-section {
   display: grid;
   gap: 12px;
-  margin-top: 18px;
+  padding: 16px 18px 18px;
 }
 
 .account-setting-list {
@@ -1668,6 +1716,21 @@ button:focus-visible {
   .profile-summary-card {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .profile-manage-button {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .modal-backdrop {
+    align-items: flex-end;
+    padding: 12px;
+  }
+
+  .account-modal {
+    width: 100%;
+    max-height: calc(100dvh - 24px);
   }
 
   .account-setting-row {
