@@ -81,6 +81,9 @@ export type StudyHistory = {
 export type PostItem = {
   id: number
   authorMemberId: number
+  authorNickname?: string | null
+  authorProfileImageUrl?: string | null
+  ownedByRequester?: boolean
   title: string
   content: string
   status: string
@@ -92,6 +95,9 @@ export type CommentItem = {
   id: number
   postId: number
   authorMemberId: number
+  authorNickname?: string | null
+  authorProfileImageUrl?: string | null
+  ownedByRequester?: boolean
   parentCommentId?: number | null
   content: string
   status: string
