@@ -163,6 +163,7 @@ function App() {
   const [showNotificationMenu, setShowNotificationMenu] = useState(false)
   const [showProfileMenu, setShowProfileMenu] = useState(false)
   const [showAccountManagementModal, setShowAccountManagementModal] = useState(false)
+  const [showWithdrawalConfirm, setShowWithdrawalConfirm] = useState(false)
   const [showChatMembers, setShowChatMembers] = useState(false)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [sessionChecked, setSessionChecked] = useState(Boolean(initialOAuthToken))
@@ -188,6 +189,12 @@ function App() {
     () => chatRooms.find((room) => String(room.id) === roomId.trim()),
     [chatRooms, roomId],
   )
+  const activeRoomStudy = useMemo(() => {
+    if (!activeRoom?.studyId) return null
+    return [...studies, ...myStudyHistory.activeStudies, ...myStudyHistory.pastStudies]
+      .find((study) => study.id === activeRoom.studyId) ?? null
+  }, [activeRoom?.studyId, myStudyHistory.activeStudies, myStudyHistory.pastStudies, studies])
+  const isActiveRoomClosed = activeRoomStudy != null && !isStudyRecruiting(activeRoomStudy.status)
   const activeRoomLabel = activeRoom ? chatRoomTitle(activeRoom, studies) : '방 미선택'
   const activeProfileMemberId = profile?.memberId ?? profile?.id ?? null
 
@@ -252,6 +259,7 @@ function App() {
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === 'Escape') {
         setShowAccountManagementModal(false)
+        setShowWithdrawalConfirm(false)
       }
     }
 
@@ -363,8 +371,6 @@ function App() {
 
   async function withdrawCurrentAccount() {
     if (!canConnect || isNicknameSaving) return
-    const confirmed = window.confirm('정말 회원 탈퇴를 진행할까요?')
-    if (!confirmed) return
 
     try {
       setIsNicknameSaving(true)
@@ -398,6 +404,7 @@ function App() {
     setShowNotificationMenu(false)
     setShowProfileMenu(false)
     setShowAccountManagementModal(false)
+    setShowWithdrawalConfirm(false)
     setShowChatMembers(false)
     setTermsAgreed(false)
     setPrivacyPolicyAgreed(false)
@@ -780,8 +787,22 @@ function App() {
   }
 
   function submitMessage() {
+    if (isActiveRoomClosed) {
+      appendLog('마감된 스터디 채팅방에는 메시지를 보낼 수 없습니다.')
+      return
+    }
     sendChatMessage(clientRef.current, roomId, message)
     setMessage('')
+  }
+
+  function openAccountManagementModal() {
+    setShowAccountManagementModal(true)
+    setShowWithdrawalConfirm(false)
+  }
+
+  function closeAccountManagementModal() {
+    setShowAccountManagementModal(false)
+    setShowWithdrawalConfirm(false)
   }
 
   if (!canConnect) {
@@ -978,10 +999,6 @@ function App() {
                       <span>{profile?.email ?? '계정 정보를 불러오는 중입니다.'}</span>
                     </div>
                   </div>
-                  <button type="button" onClick={loadProfile}>
-                    <RefreshCw size={15} />
-                    프로필 새로고침
-                  </button>
                   <button
                     type="button"
                     onClick={() => {
@@ -1119,10 +1136,6 @@ function App() {
               <h2>스터디</h2>
             </div>
             <div className="row-actions">
-              <button className="icon-text-button" type="button" onClick={loadStudies}>
-                <RefreshCw size={16} />
-                새로고침
-              </button>
               <button
                 className="primary"
                 type="button"
@@ -1377,10 +1390,6 @@ function App() {
             <span className="eyebrow">My page</span>
             <h2>마이페이지</h2>
           </div>
-          <button className="icon-text-button" type="button" onClick={() => loadMyStudies()}>
-            <RefreshCw size={16} />
-            새로고침
-          </button>
         </div>
 
         <section className="profile-summary-card" aria-label="내 정보">
@@ -1392,7 +1401,7 @@ function App() {
           <button
             className="icon-text-button profile-manage-button"
             type="button"
-            onClick={() => setShowAccountManagementModal(true)}
+            onClick={openAccountManagementModal}
           >
             <Settings2 size={18} />
             계정 관리
@@ -1433,7 +1442,7 @@ function App() {
       <div
         className="modal-backdrop"
         role="presentation"
-        onMouseDown={() => setShowAccountManagementModal(false)}
+        onMouseDown={closeAccountManagementModal}
       >
         <section
           className="account-modal"
@@ -1451,7 +1460,7 @@ function App() {
               className="icon-button"
               type="button"
               aria-label="계정 관리 닫기"
-              onClick={() => setShowAccountManagementModal(false)}
+              onClick={closeAccountManagementModal}
             >
               <X size={18} />
             </button>
@@ -1496,13 +1505,36 @@ function App() {
                 <button
                   className="danger-text-button"
                   type="button"
-                  onClick={withdrawCurrentAccount}
+                  onClick={() => setShowWithdrawalConfirm(true)}
                   disabled={isNicknameSaving}
                 >
                   <Trash2 size={15} />
                   회원 탈퇴
                 </button>
               </div>
+              {showWithdrawalConfirm && (
+                <div className="withdrawal-confirm-panel" role="alert">
+                  <strong>회원 탈퇴를 진행할까요?</strong>
+                  <span>탈퇴하면 현재 계정 정보가 삭제됩니다.</span>
+                  <div className="withdrawal-confirm-actions">
+                    <button
+                      type="button"
+                      onClick={() => setShowWithdrawalConfirm(false)}
+                      disabled={isNicknameSaving}
+                    >
+                      취소
+                    </button>
+                    <button
+                      className="danger-text-button"
+                      type="button"
+                      onClick={withdrawCurrentAccount}
+                      disabled={isNicknameSaving}
+                    >
+                      탈퇴하기
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </section>
@@ -1836,16 +1868,6 @@ function App() {
                 <span className="eyebrow">Rooms</span>
                 <h2>내 채팅방</h2>
               </div>
-              <button
-                className="icon-button"
-                type="button"
-                onClick={() => loadChatRooms()}
-                disabled={!canConnect}
-                aria-label="채팅방 새로고침"
-                title="새로고침"
-              >
-                <RefreshCw size={16} />
-              </button>
             </div>
             <div className="room-list">
               {chatRooms.length === 0 ? (
@@ -1953,9 +1975,10 @@ function App() {
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') submitMessage()
                 }}
-                placeholder="메시지를 입력하세요"
+                placeholder={isActiveRoomClosed ? '마감된 스터디 채팅방입니다' : '메시지를 입력하세요'}
+                disabled={isActiveRoomClosed}
               />
-              <button type="button" onClick={submitMessage}>
+              <button type="button" onClick={submitMessage} disabled={isActiveRoomClosed}>
                 <Send size={18} />
               </button>
             </div>
@@ -1974,9 +1997,6 @@ function App() {
             <h2>알림</h2>
             <span>{notifications.length}개</span>
           </div>
-          <button type="button" onClick={loadNotifications}>
-            <RefreshCw size={15} />
-          </button>
         </div>
         <div className="notification-list">
           {notifications.length === 0 ? (
