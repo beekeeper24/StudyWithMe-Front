@@ -175,12 +175,12 @@ export async function closeStudy(
   })
 }
 
-export async function fetchPosts(): Promise<PostItem[]> {
-  return request<PostItem[]>('/api/v1/posts')
+export async function fetchPosts(accessToken?: string): Promise<PostItem[]> {
+  return request<PostItem[]>('/api/v1/posts', accessToken)
 }
 
-export async function fetchPost(postId: number): Promise<PostItem> {
-  return request<PostItem>(`/api/v1/posts/${postId}`)
+export async function fetchPost(postId: number, accessToken?: string): Promise<PostItem> {
+  return request<PostItem>(`/api/v1/posts/${postId}`, accessToken)
 }
 
 export async function createPost(
@@ -213,8 +213,11 @@ export async function deletePost(
   })
 }
 
-export async function fetchComments(postId: number): Promise<CommentItem[]> {
-  return request<CommentItem[]>(`/api/v1/posts/${postId}/comments`)
+export async function fetchComments(
+  postId: number,
+  accessToken?: string,
+): Promise<CommentItem[]> {
+  return request<CommentItem[]>(`/api/v1/posts/${postId}/comments`, accessToken)
 }
 
 export async function createComment(

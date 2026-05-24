@@ -1341,7 +1341,7 @@ button:focus-visible {
   width: 100%;
   min-height: 66px;
   display: grid;
-  grid-template-columns: 92px minmax(0, 1fr) 130px 84px;
+  grid-template-columns: 92px minmax(0, 1fr) 150px 84px;
   gap: 14px;
   align-items: center;
   padding: 0 10px;
@@ -1368,6 +1368,33 @@ button:focus-visible {
   white-space: nowrap;
 }
 
+.board-author,
+.post-author-line,
+.comment-author {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.board-author img,
+.post-author-line img,
+.comment-author img {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  object-fit: cover;
+}
+
+.board-author span,
+.post-author-line span,
+.comment-author span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .board-editor,
 .board-detail {
   display: grid;
@@ -1388,6 +1415,16 @@ button:focus-visible {
 
 .board-detail-header h2 {
   font-size: 28px;
+}
+
+.post-author-line {
+  color: #6b7684;
+  font-size: 13px;
+}
+
+.post-author-line img {
+  width: 32px;
+  height: 32px;
 }
 
 .post-body {
@@ -1425,6 +1462,28 @@ button:focus-visible {
   gap: 7px;
   padding: 14px 0;
   border-bottom: 1px solid #edf0f3;
+}
+
+.comment-author strong {
+  display: block;
+  color: #191f28;
+  font-size: 14px;
+}
+
+.comment-author span {
+  display: block;
+  margin-top: 1px;
+  color: #8b95a1;
+  font-size: 12px;
+}
+
+.comment-author.compact img {
+  width: 24px;
+  height: 24px;
+}
+
+.comment-author.compact strong {
+  font-size: 13px;
 }
 
 .reply-stack {

@@ -262,7 +262,7 @@ function App() {
       try {
         const [studyItems, postItems] = await Promise.all([
           fetchVisibleStudies(accessToken.trim()),
-          fetchPosts(),
+          fetchPosts(accessToken.trim()),
         ])
         if (cancelled) return
         setStudies(studyItems)
@@ -657,7 +657,7 @@ function App() {
 
   async function loadPosts() {
     try {
-      const items = await fetchPosts()
+      const items = await fetchPosts(accessToken.trim())
       setPosts(items)
     } catch (error) {
       reportRequestError(error, '커뮤니티 글을 불러오지 못했습니다.')
@@ -666,7 +666,10 @@ function App() {
 
   async function selectPost(postId: number) {
     try {
-      const [post, postComments] = await Promise.all([fetchPost(postId), fetchComments(postId)])
+      const [post, postComments] = await Promise.all([
+        fetchPost(postId, accessToken.trim()),
+        fetchComments(postId, accessToken.trim()),
+      ])
       setSelectedPost(post)
       setComments(postComments)
       setPostBoardMode('detail')
@@ -1745,7 +1748,10 @@ function App() {
                     {post.status}
                   </span>
                   <strong>{post.title}</strong>
-                  <span>작성자 #{post.authorMemberId}</span>
+                  <span className="board-author">
+                    <img src={authorAvatarSrc(post)} alt="" />
+                    <span>{authorDisplayName(post)}</span>
+                  </span>
                   <time>{formatTime(post.createdAt)}</time>
                 </button>
               ))
@@ -1817,20 +1823,25 @@ function App() {
                     {selectedPost.status}
                   </span>
                   <h2>{selectedPost.title}</h2>
-                  <span className="row-meta">
-                    작성자 #{selectedPost.authorMemberId} · {formatTime(selectedPost.createdAt)}
-                  </span>
+                  <div className="post-author-line">
+                    <img src={authorAvatarSrc(selectedPost)} alt="" />
+                    <span>
+                      {authorDisplayName(selectedPost)} · {formatTime(selectedPost.createdAt)}
+                    </span>
+                  </div>
                 </header>
                 <p className="post-body">{selectedPost.content}</p>
-                <div className="post-actions">
-                  <button type="button" onClick={() => beginEditPost(selectedPost)}>
-                    수정
-                  </button>
-                  <button type="button" onClick={removePost}>
-                    <Trash2 size={16} />
-                    삭제
-                  </button>
-                </div>
+                {selectedPost.ownedByRequester === true && (
+                  <div className="post-actions">
+                    <button type="button" onClick={() => beginEditPost(selectedPost)}>
+                      수정
+                    </button>
+                    <button type="button" onClick={removePost}>
+                      <Trash2 size={16} />
+                      삭제
+                    </button>
+                  </div>
+                )}
                 <section className="comments-section" aria-label="댓글">
                   <div className="section-heading compact">
                     <div>
@@ -1875,13 +1886,23 @@ function App() {
     const replies = comments.filter((item) => item.parentCommentId === comment.id)
     return (
       <article className="comment-row" key={comment.id}>
-        <strong>Member {comment.authorMemberId}</strong>
+        <div className="comment-author">
+          <img src={authorAvatarSrc(comment)} alt="" />
+          <div>
+            <strong>{authorDisplayName(comment)}</strong>
+            <span>{formatTime(comment.createdAt)}</span>
+          </div>
+        </div>
         <p>{comment.content}</p>
-        <span>{formatTime(comment.createdAt)}</span>
         <div className="reply-stack">
           {replies.map((reply) => (
             <div className="reply-row" key={reply.id}>
-              <strong>Member {reply.authorMemberId}</strong>
+              <div className="comment-author compact">
+                <img src={authorAvatarSrc(reply)} alt="" />
+                <div>
+                  <strong>{authorDisplayName(reply)}</strong>
+                </div>
+              </div>
               <p>{reply.content}</p>
             </div>
           ))}
@@ -2221,6 +2242,14 @@ function studyStatusLabel(status: string) {
 
 function studyOwnerLabel(study: StudyItem) {
   return study.ownerNickname ? `스터디장 ${study.ownerNickname}` : '스터디장'
+}
+
+function authorDisplayName(item: PostItem | CommentItem) {
+  return item.authorNickname?.trim() || `멤버 ${item.authorMemberId}`
+}
+
+function authorAvatarSrc(item: PostItem | CommentItem) {
+  return item.authorProfileImageUrl || avatarDataUrl(authorDisplayName(item))
 }
 
 function memberDisplayName(
