@@ -4,6 +4,7 @@ import {
   Bell,
   BookOpen,
   CheckCircle2,
+  CircleAlert,
   Circle,
   House,
   KeyRound,
@@ -55,6 +56,7 @@ import {
   updateNickname,
   updatePost,
   withdrawAccount,
+  ApiClientError,
 } from './api'
 import { API_BASE_URL } from './config'
 import { createRealtimeClient, sendChatMessage } from './realtime'
@@ -102,6 +104,13 @@ const emptyPostForm = { title: '', content: '' }
 const emptyStudyHistory: StudyHistory = { activeStudies: [], pastStudies: [] }
 type StudyBoardMode = 'list' | 'write'
 type PostBoardMode = 'list' | 'detail' | 'write'
+type ToastKind = 'success' | 'error' | 'info'
+type ToastMessage = {
+  id: number
+  kind: ToastKind
+  title: string
+  message?: string
+}
 
 async function fetchVisibleStudies(token?: string) {
   if (token) {
@@ -154,6 +163,7 @@ function App() {
   const [postForm, setPostForm] = useState(emptyPostForm)
   const [nicknameDraft, setNicknameDraft] = useState('')
   const [nicknameError, setNicknameError] = useState('')
+  const [toast, setToast] = useState<ToastMessage | null>(null)
   const [isNicknameSaving, setIsNicknameSaving] = useState(false)
   const [termsAgreed, setTermsAgreed] = useState(false)
   const [privacyPolicyAgreed, setPrivacyPolicyAgreed] = useState(false)
@@ -202,6 +212,15 @@ function App() {
     setLog((current) => [item, ...current].slice(0, 8))
   }, [])
 
+  const showToast = useCallback((kind: ToastKind, title: string, message?: string) => {
+    setToast({
+      id: Date.now(),
+      kind,
+      title,
+      message: message && message !== title ? message : undefined,
+    })
+  }, [])
+
   const applyProfile = useCallback((nextProfile: AuthProfile | null) => {
     setProfile(nextProfile)
     setNicknameDraft(nextProfile?.nickname ?? '')
@@ -230,6 +249,12 @@ function App() {
   )
 
   useEffect(() => {
+    if (!toast) return undefined
+    const timer = window.setTimeout(() => setToast(null), 4200)
+    return () => window.clearTimeout(timer)
+  }, [toast])
+
+  useEffect(() => {
     if (!canConnect || needsSignup) return undefined
     let cancelled = false
 
@@ -243,7 +268,9 @@ function App() {
         setStudies(studyItems)
         setPosts(postItems)
       } catch (error) {
-        appendLog(error instanceof Error ? error.message : '초기 데이터 조회 실패')
+        const message = errorMessage(error, '데이터를 불러오지 못했습니다.')
+        appendLog(message)
+        showToast('error', '데이터를 불러오지 못했습니다.', message)
       }
     }
 
@@ -251,7 +278,7 @@ function App() {
     return () => {
       cancelled = true
     }
-  }, [accessToken, appendLog, canConnect, needsSignup])
+  }, [accessToken, appendLog, canConnect, needsSignup, showToast])
 
   useEffect(() => {
     if (!showAccountManagementModal) return undefined
@@ -293,7 +320,9 @@ function App() {
         }
       } catch (error) {
         if (!cancelled) {
-          appendLog(error instanceof Error ? error.message : '내 정보 조회 실패')
+          const message = errorMessage(error, '내 정보를 불러오지 못했습니다.')
+          appendLog(message)
+          showToast('error', '내 정보를 불러오지 못했습니다.', message)
         }
       }
     }
@@ -302,7 +331,7 @@ function App() {
     return () => {
       cancelled = true
     }
-  }, [appendLog, applyProfile])
+  }, [appendLog, applyProfile, showToast])
 
   useEffect(() => {
     if (initialOAuthToken) return
@@ -354,8 +383,9 @@ function App() {
       const token = await refreshAccessToken()
       applyToken(token)
       appendLog('access token 재발급 성공')
+      showToast('success', '세션이 갱신되었습니다.')
     } catch (error) {
-      appendLog(error instanceof Error ? error.message : 'access token 재발급 실패')
+      reportRequestError(error, '세션을 갱신하지 못했습니다.')
     }
   }
 
@@ -365,7 +395,7 @@ function App() {
       clearAuthenticatedState()
       appendLog('로그아웃 완료')
     } catch (error) {
-      appendLog(error instanceof Error ? error.message : '로그아웃 실패')
+      reportRequestError(error, '로그아웃하지 못했습니다.')
     }
   }
 
@@ -377,8 +407,9 @@ function App() {
       await withdrawAccount(accessToken.trim())
       clearAuthenticatedState()
       appendLog('회원 탈퇴 완료')
+      showToast('success', '회원 탈퇴가 완료되었습니다.')
     } catch (error) {
-      appendLog(error instanceof Error ? error.message : '회원 탈퇴 실패')
+      reportRequestError(error, '회원 탈퇴를 진행하지 못했습니다.')
     } finally {
       setIsNicknameSaving(false)
     }
@@ -418,7 +449,7 @@ function App() {
       applyProfile(me)
       appendLog('내 정보 조회 성공')
     } catch (error) {
-      appendLog(error instanceof Error ? error.message : '내 정보 조회 실패')
+      reportRequestError(error, '내 정보를 불러오지 못했습니다.')
     }
   }
 
@@ -437,9 +468,16 @@ function App() {
       applyProfile(updatedProfile)
       setActiveView('lobby')
       appendLog('별명 설정 완료')
+      showToast('success', '별명이 저장되었습니다.')
       await Promise.all([loadStudies(), loadMyStudies(), loadChatRooms()])
     } catch (error) {
-      setNicknameError(error instanceof Error ? error.message : '별명 설정 실패')
+      const message = errorMessage(error, '별명을 저장하지 못했습니다.')
+      setNicknameError(message)
+      appendLog(message)
+      if (isSessionExpired(error)) {
+        showToast('error', '로그인이 필요합니다.', '다시 로그인해 주세요.')
+        clearAuthenticatedState()
+      }
     } finally {
       setIsNicknameSaving(false)
     }
@@ -471,9 +509,16 @@ function App() {
       setPrivacyPolicyAgreed(false)
       setActiveView('lobby')
       appendLog('회원가입 완료')
+      showToast('success', '가입이 완료되었습니다.')
       await Promise.all([loadStudies(), loadMyStudies(), loadChatRooms()])
     } catch (error) {
-      setNicknameError(error instanceof Error ? error.message : '회원가입 실패')
+      const message = errorMessage(error, '회원가입을 완료하지 못했습니다.')
+      setNicknameError(message)
+      appendLog(message)
+      if (isSessionExpired(error)) {
+        showToast('error', '로그인이 필요합니다.', '다시 로그인해 주세요.')
+        clearAuthenticatedState()
+      }
     } finally {
       setIsNicknameSaving(false)
     }
@@ -486,7 +531,7 @@ function App() {
       setNotifications(items)
       appendLog(`알림 ${items.length}개 동기화`)
     } catch (error) {
-      appendLog(error instanceof Error ? error.message : '알림 조회 실패')
+      reportRequestError(error, '알림을 불러오지 못했습니다.')
     }
   }
 
@@ -497,7 +542,7 @@ function App() {
       setChatRooms(rooms)
       appendLog(`채팅방 ${rooms.length}개 동기화`)
     } catch (error) {
-      appendLog(error instanceof Error ? error.message : '채팅방 조회 실패')
+      reportRequestError(error, '채팅방을 불러오지 못했습니다.')
     }
   }
 
@@ -509,7 +554,7 @@ function App() {
         current ? (items.find((item) => item.id === current.id) ?? null) : null,
       )
     } catch (error) {
-      appendLog(error instanceof Error ? error.message : '스터디 목록 조회 실패')
+      reportRequestError(error, '스터디 목록을 불러오지 못했습니다.')
     }
   }
 
@@ -520,7 +565,7 @@ function App() {
       setMyStudyHistory(history)
       appendLog('내 스터디 이력 동기화')
     } catch (error) {
-      appendLog(error instanceof Error ? error.message : '내 스터디 이력 조회 실패')
+      reportRequestError(error, '내 스터디 이력을 불러오지 못했습니다.')
     }
   }
 
@@ -529,7 +574,7 @@ function App() {
       const item = await fetchVisibleStudy(studyId, accessToken.trim())
       setSelectedStudy(item)
     } catch (error) {
-      appendLog(error instanceof Error ? error.message : '스터디 상세 조회 실패')
+      reportRequestError(error, '스터디 상세를 불러오지 못했습니다.')
     }
   }
 
@@ -550,7 +595,7 @@ function App() {
       await loadChatMessages(room.id)
       appendLog('스터디 채팅방 준비 완료')
     } catch (error) {
-      appendLog(error instanceof Error ? error.message : '스터디 채팅방 준비 실패')
+      reportRequestError(error, '스터디 채팅방을 열지 못했습니다.')
     }
   }
 
@@ -575,8 +620,9 @@ function App() {
       setSelectedStudy(created)
       setStudyBoardMode('list')
       appendLog('스터디 생성 완료')
+      showToast('success', '스터디가 생성되었습니다.')
     } catch (error) {
-      appendLog(error instanceof Error ? error.message : '스터디 생성 실패')
+      reportRequestError(error, '스터디를 생성하지 못했습니다.')
     }
   }
 
@@ -596,8 +642,9 @@ function App() {
         await selectStudy(studyId)
       }
       appendLog(`스터디 ${actionLabel(action)} 완료`)
+      showToast('success', studyActionSuccessMessage(action))
     } catch (error) {
-      appendLog(error instanceof Error ? error.message : `스터디 ${actionLabel(action)} 실패`)
+      reportRequestError(error, studyActionFailureMessage(action))
     }
   }
 
@@ -613,7 +660,7 @@ function App() {
       const items = await fetchPosts()
       setPosts(items)
     } catch (error) {
-      appendLog(error instanceof Error ? error.message : '게시글 목록 조회 실패')
+      reportRequestError(error, '커뮤니티 글을 불러오지 못했습니다.')
     }
   }
 
@@ -624,7 +671,7 @@ function App() {
       setComments(postComments)
       setPostBoardMode('detail')
     } catch (error) {
-      appendLog(error instanceof Error ? error.message : '게시글 상세 조회 실패')
+      reportRequestError(error, '글 상세를 불러오지 못했습니다.')
     }
   }
 
@@ -646,8 +693,9 @@ function App() {
       await selectPost(post.id)
       setPostBoardMode('detail')
       appendLog(editingPostId ? '게시글 수정 완료' : '게시글 작성 완료')
+      showToast('success', editingPostId ? '글이 수정되었습니다.' : '글이 작성되었습니다.')
     } catch (error) {
-      appendLog(error instanceof Error ? error.message : '게시글 저장 실패')
+      reportRequestError(error, '글을 저장하지 못했습니다.')
     }
   }
 
@@ -660,8 +708,9 @@ function App() {
       await loadPosts()
       setPostBoardMode('list')
       appendLog('게시글 삭제 완료')
+      showToast('success', '글이 삭제되었습니다.')
     } catch (error) {
-      appendLog(error instanceof Error ? error.message : '게시글 삭제 실패')
+      reportRequestError(error, '글을 삭제하지 못했습니다.')
     }
   }
 
@@ -690,7 +739,7 @@ function App() {
       await selectPost(selectedPostId)
       appendLog('댓글 작성 완료')
     } catch (error) {
-      appendLog(error instanceof Error ? error.message : '댓글 작성 실패')
+      reportRequestError(error, '댓글을 작성하지 못했습니다.')
     }
   }
 
@@ -703,7 +752,7 @@ function App() {
       await selectPost(selectedPostId)
       appendLog('답글 작성 완료')
     } catch (error) {
-      appendLog(error instanceof Error ? error.message : '답글 작성 실패')
+      reportRequestError(error, '답글을 작성하지 못했습니다.')
     }
   }
 
@@ -725,7 +774,7 @@ function App() {
       appendLog(`채팅 메시지 ${messages.length}개 동기화`)
     } catch (error) {
       setChatMembers([])
-      appendLog(error instanceof Error ? error.message : '채팅 메시지 조회 실패')
+      reportRequestError(error, '채팅방을 불러오지 못했습니다.')
     }
   }
 
@@ -742,8 +791,9 @@ function App() {
       }
       await loadChatRooms()
       appendLog('채팅방 삭제 완료')
+      showToast('success', '채팅방이 삭제되었습니다.')
     } catch (error) {
-      appendLog(error instanceof Error ? error.message : '채팅방 삭제 실패')
+      reportRequestError(error, '채팅방을 삭제하지 못했습니다.')
     }
   }
 
@@ -767,6 +817,7 @@ function App() {
       onError: (errorMessage) => {
         setStatus('error')
         appendLog(errorMessage)
+        showToast('error', '채팅 연결에 문제가 있습니다.', errorMessage)
       },
       onChatMessage: (incoming) => {
         setChatMessages((current) => [...current, incoming].slice(-30))
@@ -786,9 +837,23 @@ function App() {
     setStatus('idle')
   }
 
+  function reportRequestError(error: unknown, fallback: string) {
+    const message = errorMessage(error, fallback)
+    appendLog(message)
+
+    if (isSessionExpired(error)) {
+      showToast('error', '로그인이 필요합니다.', '다시 로그인해 주세요.')
+      clearAuthenticatedState()
+      return
+    }
+
+    showToast('error', fallback, message)
+  }
+
   function submitMessage() {
     if (isActiveRoomClosed) {
       appendLog('마감된 스터디 채팅방에는 메시지를 보낼 수 없습니다.')
+      showToast('info', '마감된 스터디 채팅방입니다.', '새 메시지를 보낼 수 없습니다.')
       return
     }
     sendChatMessage(clientRef.current, roomId, message)
@@ -807,103 +872,109 @@ function App() {
 
   if (!canConnect) {
     return (
-      <main className="login-page">
-        <section className="login-card" aria-label="StudyWithMe 로그인">
-          <div className="brand login-brand">
-            <div className="brand-mark">S</div>
-            <div>
-              <strong>StudyWithMe</strong>
+      <>
+        <main className="login-page">
+          <section className="login-card" aria-label="StudyWithMe 로그인">
+            <div className="brand login-brand">
+              <div className="brand-mark">S</div>
+              <div>
+                <strong>StudyWithMe</strong>
+              </div>
             </div>
-          </div>
-          <div className="login-actions">
-            {oauthProviders.map((provider) => (
-              <button
-                className="primary"
-                key={provider.id}
-                type="button"
-                onClick={() => startOAuth(provider.id)}
-                disabled={!sessionChecked}
-              >
-                <LogIn size={17} />
-                {provider.label}로 로그인
-              </button>
-            ))}
-          </div>
-        </section>
-      </main>
+            <div className="login-actions">
+              {oauthProviders.map((provider) => (
+                <button
+                  className="primary"
+                  key={provider.id}
+                  type="button"
+                  onClick={() => startOAuth(provider.id)}
+                  disabled={!sessionChecked}
+                >
+                  <LogIn size={17} />
+                  {provider.label}로 로그인
+                </button>
+              ))}
+            </div>
+          </section>
+        </main>
+        {toast && renderToast()}
+      </>
     )
   }
 
   if (needsSignup) {
     return (
-      <main className="login-page">
-        <section className="signup-card" aria-label="회원가입">
-          <div className="brand login-brand">
-            <img className="nickname-profile-image" src={profileImageSrc} alt="" />
-            <div>
-              <strong>회원가입</strong>
-              <span>{profile?.email ?? 'StudyWithMe'}</span>
+      <>
+        <main className="login-page">
+          <section className="signup-card" aria-label="회원가입">
+            <div className="brand login-brand">
+              <img className="nickname-profile-image" src={profileImageSrc} alt="" />
+              <div>
+                <strong>회원가입</strong>
+                <span>{profile?.email ?? 'StudyWithMe'}</span>
+              </div>
             </div>
-          </div>
-          <label>
-            <span>별명</span>
-            <input
-              value={nicknameDraft}
-              onChange={(event) => {
-                setNicknameDraft(event.target.value)
-                setNicknameError('')
-              }}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && termsAgreed && privacyPolicyAgreed) {
-                  void submitSignup()
-                }
-              }}
-              placeholder="예: 스터디왕"
-              autoFocus
-            />
-          </label>
-          <div className="terms-checklist" aria-label="필수 약관">
-            <label className="terms-check">
+            <label>
+              <span>별명</span>
               <input
-                type="checkbox"
-                checked={termsAgreed}
+                value={nicknameDraft}
                 onChange={(event) => {
-                  setTermsAgreed(event.target.checked)
+                  setNicknameDraft(event.target.value)
                   setNicknameError('')
                 }}
-              />
-              <span>서비스 이용약관 동의</span>
-              <em>필수</em>
-            </label>
-            <label className="terms-check">
-              <input
-                type="checkbox"
-                checked={privacyPolicyAgreed}
-                onChange={(event) => {
-                  setPrivacyPolicyAgreed(event.target.checked)
-                  setNicknameError('')
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && termsAgreed && privacyPolicyAgreed) {
+                    void submitSignup()
+                  }
                 }}
+                placeholder="예: 스터디왕"
+                autoFocus
               />
-              <span>개인정보 처리방침 동의</span>
-              <em>필수</em>
             </label>
-          </div>
-          {nicknameError && <p className="form-error">{nicknameError}</p>}
-          <button
-            className="primary wide"
-            type="button"
-            onClick={submitSignup}
-            disabled={
-              isNicknameSaving
-              || !nicknameDraft.trim()
-              || !termsAgreed
-              || !privacyPolicyAgreed
-            }
-          >
-            가입 완료
-          </button>
-        </section>
-      </main>
+            <div className="terms-checklist" aria-label="필수 약관">
+              <label className="terms-check">
+                <input
+                  type="checkbox"
+                  checked={termsAgreed}
+                  onChange={(event) => {
+                    setTermsAgreed(event.target.checked)
+                    setNicknameError('')
+                  }}
+                />
+                <span>서비스 이용약관 동의</span>
+                <em>필수</em>
+              </label>
+              <label className="terms-check">
+                <input
+                  type="checkbox"
+                  checked={privacyPolicyAgreed}
+                  onChange={(event) => {
+                    setPrivacyPolicyAgreed(event.target.checked)
+                    setNicknameError('')
+                  }}
+                />
+                <span>개인정보 처리방침 동의</span>
+                <em>필수</em>
+              </label>
+            </div>
+            {nicknameError && <p className="form-error">{nicknameError}</p>}
+            <button
+              className="primary wide"
+              type="button"
+              onClick={submitSignup}
+              disabled={
+                isNicknameSaving
+                || !nicknameDraft.trim()
+                || !termsAgreed
+                || !privacyPolicyAgreed
+              }
+            >
+              가입 완료
+            </button>
+          </section>
+        </main>
+        {toast && renderToast()}
+      </>
     )
   }
 
@@ -1073,6 +1144,7 @@ function App() {
         {activeView === 'mypage' && renderMyPage()}
         {showAccountManagementModal && renderAccountManagementModal()}
       </main>
+      {toast && renderToast()}
     </div>
   )
 
@@ -2037,6 +2109,30 @@ function App() {
     )
   }
 
+  function renderToast() {
+    const Icon = toast?.kind === 'success'
+      ? CheckCircle2
+      : toast?.kind === 'error'
+        ? CircleAlert
+        : Bell
+
+    return (
+      <div
+        className={`toast ${toast?.kind ?? 'info'}`}
+        role={toast?.kind === 'error' ? 'alert' : 'status'}
+      >
+        <Icon size={18} />
+        <div>
+          <strong>{toast?.title}</strong>
+          {toast?.message && <span>{toast.message}</span>}
+        </div>
+        <button type="button" onClick={() => setToast(null)} aria-label="알림 닫기">
+          <X size={14} />
+        </button>
+      </div>
+    )
+  }
+
   function pageTitle() {
     if (activeView === 'lobby') return '홈'
     if (activeView === 'studies') return '스터디'
@@ -2084,6 +2180,18 @@ function actionLabel(action: 'join' | 'leave' | 'close') {
   return '탈퇴'
 }
 
+function studyActionSuccessMessage(action: 'join' | 'leave' | 'close') {
+  if (action === 'join') return '스터디에 참여했습니다.'
+  if (action === 'close') return '스터디 모집을 마감했습니다.'
+  return '스터디에서 탈퇴했습니다.'
+}
+
+function studyActionFailureMessage(action: 'join' | 'leave' | 'close') {
+  if (action === 'join') return '스터디에 참여하지 못했습니다.'
+  if (action === 'close') return '스터디 모집을 마감하지 못했습니다.'
+  return '스터디에서 탈퇴하지 못했습니다.'
+}
+
 function isValidNickname(nickname: string) {
   return /^[가-힣A-Za-z0-9_]{2,20}$/.test(nickname)
 }
@@ -2092,6 +2200,15 @@ function isSignupRequired(profile: AuthProfile) {
   return profile.signupRequired === true
     || profile.nicknameRequired === true
     || profile.termsAgreementRequired === true
+}
+
+function errorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message.trim()) return error.message
+  return fallback
+}
+
+function isSessionExpired(error: unknown) {
+  return error instanceof ApiClientError && error.status === 401
 }
 
 function isStudyRecruiting(status: string) {

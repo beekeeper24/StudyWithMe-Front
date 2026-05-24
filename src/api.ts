@@ -27,6 +27,18 @@ type ApiErrorResponse = {
   }
 }
 
+export class ApiClientError extends Error {
+  code?: string
+  status: number
+
+  constructor(message: string, options: { code?: string; status: number }) {
+    super(message)
+    this.name = 'ApiClientError'
+    this.code = options.code
+    this.status = options.status
+  }
+}
+
 export function oauthLoginUrl(provider: OAuthProvider) {
   return `${API_BASE_URL}/oauth2/authorization/${provider}`
 }
@@ -249,7 +261,10 @@ async function request<T>(
   const body = (await response.json()) as ApiResponse<T> | ApiErrorResponse
   if (!response.ok || !body.success) {
     const errorBody = body as ApiErrorResponse
-    throw new Error(errorBody.error?.message ?? `HTTP ${response.status}`)
+    throw new ApiClientError(errorBody.error?.message ?? `HTTP ${response.status}`, {
+      code: errorBody.error?.code,
+      status: response.status,
+    })
   }
 
   return body.data

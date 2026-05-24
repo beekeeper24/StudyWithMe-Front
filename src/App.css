@@ -1713,6 +1713,89 @@ button:focus-visible {
   margin-top: 2px;
 }
 
+.toast {
+  width: min(380px, calc(100vw - 36px));
+  position: fixed;
+  top: 22px;
+  right: 22px;
+  z-index: 80;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) 28px;
+  gap: 10px;
+  align-items: start;
+  padding: 14px;
+  border: 1px solid #e5e8eb;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 18px 50px rgba(25, 31, 40, 0.16);
+  animation: toast-in 180ms ease-out;
+}
+
+.toast.success {
+  border-color: #bdebd3;
+}
+
+.toast.error {
+  border-color: #f3b7b0;
+}
+
+.toast.info {
+  border-color: #c9d8ef;
+}
+
+.toast > svg {
+  margin-top: 2px;
+  color: #4e5968;
+}
+
+.toast.success > svg {
+  color: #008c54;
+}
+
+.toast.error > svg {
+  color: #d92d20;
+}
+
+.toast strong {
+  display: block;
+  color: #191f28;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.toast span {
+  display: block;
+  margin-top: 3px;
+  color: #6b7684;
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.toast button {
+  width: 28px;
+  min-height: 28px;
+  padding: 0;
+  color: #6b7684;
+  background: transparent;
+}
+
+.toast button:hover {
+  background: #f2f4f6;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @media (max-width: 1180px) {
   .workspace-grid,
   .lobby-metrics,
@@ -1827,6 +1910,14 @@ button:focus-visible {
 }
 
 @media (max-width: 760px) {
+  .toast {
+    top: auto;
+    right: 14px;
+    bottom: 14px;
+    left: 14px;
+    width: auto;
+  }
+
   .workspace {
     padding: 18px;
   }
