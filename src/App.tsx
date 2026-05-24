@@ -1373,34 +1373,65 @@ function App() {
             <strong>{profile?.nickname ?? '내 프로필'}</strong>
             <span>{profile?.email ?? '계정 정보를 확인할 수 없습니다.'}</span>
           </div>
-          <div className="nickname-edit-form">
-            <input
-              value={nicknameDraft}
-              onChange={(event) => {
-                setNicknameDraft(event.target.value)
-                setNicknameError('')
-              }}
-              placeholder="별명"
-            />
-            <button
-              type="button"
-              onClick={submitNickname}
-              disabled={isNicknameSaving || !nicknameDraft.trim()}
-            >
-              저장
-            </button>
-          </div>
-          <button
-            className="danger-text-button"
-            type="button"
-            onClick={withdrawCurrentAccount}
-            disabled={isNicknameSaving}
-          >
-            <Trash2 size={15} />
-            회원 탈퇴
-          </button>
         </section>
-        {nicknameError && <p className="form-error inline">{nicknameError}</p>}
+
+        <section className="account-management-section" aria-label="계정 관리">
+          <div className="section-heading compact">
+            <div>
+              <span className="eyebrow">Account</span>
+              <h2>계정 관리</h2>
+            </div>
+            <Settings2 size={18} />
+          </div>
+          <div className="account-setting-list">
+            <div className="account-setting-row">
+              <div className="account-setting-main">
+                <strong>이메일</strong>
+                <span>{profile?.email ?? '계정 정보를 확인할 수 없습니다.'}</span>
+              </div>
+            </div>
+            <div className="account-setting-row">
+              <div className="account-setting-main">
+                <strong>별명</strong>
+                <span>{profile?.nickname ?? '별명을 설정해 주세요.'}</span>
+              </div>
+              <div className="nickname-edit-form">
+                <input
+                  value={nicknameDraft}
+                  onChange={(event) => {
+                    setNicknameDraft(event.target.value)
+                    setNicknameError('')
+                  }}
+                  placeholder="별명"
+                  aria-label="별명"
+                />
+                <button
+                  type="button"
+                  onClick={submitNickname}
+                  disabled={isNicknameSaving || !nicknameDraft.trim()}
+                >
+                  저장
+                </button>
+              </div>
+            </div>
+            {nicknameError && <p className="form-error inline">{nicknameError}</p>}
+            <div className="account-setting-row danger-zone">
+              <div className="account-setting-main">
+                <strong>회원 탈퇴</strong>
+                <span>탈퇴 후 같은 OAuth 계정으로 다시 가입할 수 있습니다.</span>
+              </div>
+              <button
+                className="danger-text-button"
+                type="button"
+                onClick={withdrawCurrentAccount}
+                disabled={isNicknameSaving}
+              >
+                <Trash2 size={15} />
+                회원 탈퇴
+              </button>
+            </div>
+          </div>
+        </section>
 
         <div className="study-history-grid">
           <section className="history-section" aria-label="참여 중인 스터디">
