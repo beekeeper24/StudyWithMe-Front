@@ -55,6 +55,7 @@ import {
   replyToComment,
   updateNickname,
   updatePost,
+  updateStudy,
   withdrawAccount,
   ApiClientError,
 } from './api'
@@ -159,6 +160,7 @@ function App() {
   const [myStudyHistory, setMyStudyHistory] = useState<StudyHistory>(emptyStudyHistory)
   const [selectedStudy, setSelectedStudy] = useState<StudyItem | null>(null)
   const [studyBoardMode, setStudyBoardMode] = useState<StudyBoardMode>('list')
+  const [editingStudyId, setEditingStudyId] = useState<number | null>(null)
   const [posts, setPosts] = useState<PostItem[]>([])
   const [selectedPost, setSelectedPost] = useState<PostItem | null>(null)
   const [editingPostId, setEditingPostId] = useState<number | null>(null)
@@ -434,6 +436,7 @@ function App() {
     setStudies([])
     setMyStudyHistory(emptyStudyHistory)
     setSelectedStudy(null)
+    setEditingStudyId(null)
     setStudyBoardMode('list')
     setPosts([])
     setSelectedPost(null)
@@ -623,25 +626,54 @@ function App() {
       showToast('error', '정원은 1명 이상으로 입력해 주세요.')
       return
     }
+    const payload = {
+      title: studyForm.title.trim(),
+      progressMethod: studyForm.progressMethod.trim(),
+      targetAudience: studyForm.targetAudience.trim(),
+      rules: studyForm.rules.trim(),
+      capacity,
+      schedule: studyForm.schedule.trim(),
+    }
     try {
-      const created = await createStudy(accessToken.trim(), {
-        title: studyForm.title.trim(),
-        progressMethod: studyForm.progressMethod.trim(),
-        targetAudience: studyForm.targetAudience.trim(),
-        rules: studyForm.rules.trim(),
-        capacity,
-        schedule: studyForm.schedule.trim(),
-      })
-      setStudyForm(emptyStudyForm)
+      const saved = editingStudyId == null
+        ? await createStudy(accessToken.trim(), payload)
+        : await updateStudy(accessToken.trim(), editingStudyId, payload)
+      resetStudyEditor()
       await loadStudies()
       await loadMyStudies()
-      setSelectedStudy(created)
+      setSelectedStudy(saved)
       setStudyBoardMode('list')
-      appendLog('스터디 생성 완료')
-      showToast('success', '스터디가 생성되었습니다.')
+      appendLog(editingStudyId == null ? '스터디 생성 완료' : '스터디 수정 완료')
+      showToast('success', editingStudyId == null ? '스터디가 생성되었습니다.' : '스터디가 수정되었습니다.')
     } catch (error) {
-      reportRequestError(error, '스터디를 생성하지 못했습니다.')
+      reportRequestError(error, editingStudyId == null ? '스터디를 생성하지 못했습니다.' : '스터디를 수정하지 못했습니다.')
     }
+  }
+
+  function resetStudyEditor() {
+    setStudyForm(emptyStudyForm)
+    setEditingStudyId(null)
+  }
+
+  function openCreateStudyEditor() {
+    resetStudyEditor()
+    setSelectedStudy(null)
+    setStudyBoardMode('write')
+  }
+
+  function openEditStudyEditor(study: StudyItem) {
+    const detail = studyDetail(study)
+    setStudyForm({
+      title: study.title,
+      progressMethod: detail.progressMethod,
+      targetAudience: detail.targetAudience,
+      rules: detail.rules,
+      capacity: study.capacity == null ? '' : String(study.capacity),
+      schedule: detail.schedule === '협의' ? '' : detail.schedule,
+    })
+    setEditingStudyId(study.id)
+    setSelectedStudy(study)
+    setStudyBoardMode('write')
   }
 
   async function mutateStudy(studyId: number, action: 'join' | 'leave' | 'close') {
@@ -1232,11 +1264,7 @@ function App() {
               <button
                 className="primary"
                 type="button"
-                onClick={() => {
-                  setStudyForm(emptyStudyForm)
-                  setSelectedStudy(null)
-                  setStudyBoardMode('write')
-                }}
+                onClick={openCreateStudyEditor}
               >
                 <Plus size={16} />
                 스터디 만들기
@@ -1323,13 +1351,18 @@ function App() {
                         </>
                       )}
                       {study.ownedByRequester && isRecruiting && (
-                        <button
-                          type="button"
-                          onClick={() => mutateStudy(study.id, 'close')}
-                          disabled={!canConnect}
-                        >
-                          마감하기
-                        </button>
+                        <>
+                          <button type="button" onClick={() => openEditStudyEditor(study)}>
+                            수정
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => mutateStudy(study.id, 'close')}
+                            disabled={!canConnect}
+                          >
+                            마감하기
+                          </button>
+                        </>
                       )}
                       <button type="button" onClick={() => toggleStudyDetail(study.id)}>
                         {isSelected ? '닫기' : '상세'}
@@ -1346,8 +1379,8 @@ function App() {
           <article className="study-editor">
             <div className="section-heading compact">
               <div>
-                <span className="eyebrow">Create</span>
-                <h2>스터디 만들기</h2>
+                <span className="eyebrow">{editingStudyId == null ? 'Create' : 'Edit'}</span>
+                <h2>{editingStudyId == null ? '스터디 만들기' : '스터디 수정'}</h2>
               </div>
             </div>
             <div className="form-stack">
@@ -1420,7 +1453,7 @@ function App() {
                 <button
                   type="button"
                   onClick={() => {
-                    setStudyForm(emptyStudyForm)
+                    resetStudyEditor()
                     setStudyBoardMode('list')
                   }}
                 >
@@ -1440,7 +1473,7 @@ function App() {
                   }
                 >
                   <Plus size={16} />
-                  생성
+                  {editingStudyId == null ? '생성' : '저장'}
                 </button>
               </div>
             </div>
@@ -1476,6 +1509,11 @@ function App() {
             </span>
             {isStudyJoined(selectedStudy.id) && (
               <div className="row-actions detail-actions">
+                {selectedStudy.ownedByRequester && (
+                  <button type="button" onClick={() => openEditStudyEditor(selectedStudy)}>
+                    수정
+                  </button>
+                )}
                 <button
                   className="primary"
                   type="button"

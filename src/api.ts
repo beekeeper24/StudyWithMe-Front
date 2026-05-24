@@ -27,6 +27,15 @@ type ApiErrorResponse = {
   }
 }
 
+export type StudyPayload = {
+  title: string
+  progressMethod: string
+  targetAudience: string
+  rules: string
+  capacity: number
+  schedule: string
+}
+
 export class ApiClientError extends Error {
   code?: string
   status: number
@@ -140,17 +149,21 @@ export async function fetchStudy(studyId: number, accessToken?: string): Promise
 
 export async function createStudy(
   accessToken: string,
-  payload: {
-    title: string
-    progressMethod: string
-    targetAudience: string
-    rules: string
-    capacity: number
-    schedule: string
-  },
+  payload: StudyPayload,
 ): Promise<StudyItem> {
   return request<StudyItem>('/api/v1/studies', accessToken, {
     method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function updateStudy(
+  accessToken: string,
+  studyId: number,
+  payload: StudyPayload,
+): Promise<StudyItem> {
+  return request<StudyItem>(`/api/v1/studies/${studyId}`, accessToken, {
+    method: 'PUT',
     body: JSON.stringify(payload),
   })
 }
