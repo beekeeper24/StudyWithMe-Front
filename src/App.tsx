@@ -41,6 +41,7 @@ import {
   createStudy,
   createStudyChatRoom,
   deleteChatRoom,
+  deleteComment,
   deleteNotification,
   deletePost,
   deleteStudy,
@@ -340,6 +341,7 @@ function App() {
     () => notifications.filter((item) => !item.read).length,
     [notifications],
   )
+  const isAdmin = profile?.roles?.includes('ADMIN') === true
 
   useEffect(() => {
     if (!toast) return undefined
@@ -1038,6 +1040,10 @@ function App() {
 
   async function submitPost() {
     if (!canConnect || !postForm.title.trim() || !postForm.content.trim()) return
+    if (communityBoardType(selectedCommunityBoard) === 'NOTICE' && !isAdmin) {
+      showToast('error', '공지사항은 관리자만 작성할 수 있습니다.')
+      return
+    }
     try {
       const post = editingPostId
         ? await updatePost(accessToken.trim(), editingPostId, {
@@ -1116,6 +1122,18 @@ function App() {
       appendLog('답글 작성 완료')
     } catch (error) {
       reportRequestError(error, '답글을 작성하지 못했습니다.')
+    }
+  }
+
+  async function removeComment(commentId: number) {
+    if (!canConnect || !selectedPostId) return
+    try {
+      await deleteComment(accessToken.trim(), commentId)
+      await selectPost(selectedPostId)
+      appendLog('댓글 삭제 완료')
+      showToast('success', '댓글이 삭제되었습니다.')
+    } catch (error) {
+      reportRequestError(error, '댓글을 삭제하지 못했습니다.')
     }
   }
 
@@ -2348,8 +2366,9 @@ function App() {
   }
 
   function renderPosts() {
-    const selectedBoardLabel =
-      communityBoards.find((board) => board.id === selectedCommunityBoard)?.label ?? '자유게시판'
+    const selectedBoard = communityBoards.find((board) => board.id === selectedCommunityBoard)
+    const selectedBoardLabel = selectedBoard?.label ?? '자유게시판'
+    const canWriteSelectedBoard = selectedBoard?.boardType !== 'NOTICE' || isAdmin
     const isWritingPost = postBoardMode === 'write'
     const isViewingPost = postBoardMode === 'detail'
 
@@ -2360,10 +2379,12 @@ function App() {
             <h2>커뮤니티</h2>
             <span>{selectedBoardLabel}</span>
           </div>
-          <button className="primary" type="button" onClick={beginCreatePost}>
-            <Plus size={16} />
-            글쓰기
-          </button>
+          {canWriteSelectedBoard && (
+            <button className="primary" type="button" onClick={beginCreatePost}>
+              <Plus size={16} />
+              글쓰기
+            </button>
+          )}
         </div>
 
         <div className="community-board-tabs" aria-label="하위 게시판">
@@ -2590,6 +2611,14 @@ function App() {
           </div>
         </div>
         <p>{comment.content}</p>
+        {comment.ownedByRequester === true && (
+          <div className="comment-actions">
+            <button type="button" onClick={() => removeComment(comment.id)}>
+              <Trash2 size={14} />
+              삭제
+            </button>
+          </div>
+        )}
         <div className="reply-stack">
           {replies.map((reply) => (
             <div className="reply-row" key={reply.id}>
@@ -2600,6 +2629,14 @@ function App() {
                 </div>
               </div>
               <p>{reply.content}</p>
+              {reply.ownedByRequester === true && (
+                <div className="comment-actions">
+                  <button type="button" onClick={() => removeComment(reply.id)}>
+                    <Trash2 size={14} />
+                    삭제
+                  </button>
+                </div>
+              )}
             </div>
           ))}
           <div className="reply-composer">
