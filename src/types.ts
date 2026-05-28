@@ -66,6 +66,7 @@ export type AuthProfile = {
   signupRequired?: boolean
   termsVersion?: string | null
   privacyPolicyVersion?: string | null
+  roles?: string[]
 }
 
 export type StudyItem = {

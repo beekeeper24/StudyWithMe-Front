@@ -357,6 +357,15 @@ export async function replyToComment(
   })
 }
 
+export async function deleteComment(
+  accessToken: string,
+  commentId: number,
+): Promise<CommentItem> {
+  return request<CommentItem>(`/api/v1/comments/${commentId}`, accessToken, {
+    method: 'DELETE',
+  })
+}
+
 async function request<T>(
   path: string,
   accessToken?: string,

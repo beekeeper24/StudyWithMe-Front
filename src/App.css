@@ -1713,6 +1713,30 @@ textarea[aria-invalid="true"] {
   border-bottom: 1px solid #edf0f3;
 }
 
+.comment-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.comment-actions button {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 9px;
+  border-radius: 8px;
+  color: #6b7684;
+  background: #f2f4f6;
+  font-size: 12px;
+}
+
+.comment-actions button:hover:not(:disabled) {
+  background: #e5e8eb;
+  color: #191f28;
+  transform: translateY(-1px);
+}
+
 .comment-author strong {
   display: block;
   color: #191f28;
