@@ -106,6 +106,15 @@ export async function fetchNotifications(
   return request<NotificationItem[]>('/api/v1/notifications', accessToken)
 }
 
+export async function markNotificationRead(
+  accessToken: string,
+  notificationId: number,
+): Promise<NotificationItem> {
+  return request<NotificationItem>(`/api/v1/notifications/${notificationId}/read`, accessToken, {
+    method: 'POST',
+  })
+}
+
 export async function fetchChatRooms(accessToken: string): Promise<ChatRoom[]> {
   return request<ChatRoom[]>('/api/v1/chat/rooms', accessToken)
 }

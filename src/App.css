@@ -249,6 +249,16 @@ button {
   font: inherit;
   font-weight: 700;
   cursor: pointer;
+  transition:
+    transform 150ms ease,
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+button:hover:not(:disabled) {
+  transform: translateY(-1px);
 }
 
 .nav-item {
@@ -591,6 +601,32 @@ h2 {
 .row-actions button.primary {
   color: #ffffff;
   background: #24272d;
+}
+
+.primary:hover:not(:disabled),
+.control-actions button.primary:hover:not(:disabled),
+.form-stack button.primary:hover:not(:disabled),
+.composer button:hover:not(:disabled),
+.reply-composer button:hover:not(:disabled),
+.comment-composer button.primary:hover:not(:disabled),
+.row-actions button.primary:hover:not(:disabled) {
+  background: #111418;
+  box-shadow: 0 8px 18px rgba(25, 31, 40, 0.16);
+}
+
+.auth-actions button:hover:not(:disabled),
+.control-actions button:hover:not(:disabled),
+.row-actions button:hover:not(:disabled),
+.icon-text-button:hover:not(:disabled),
+.icon-button:hover:not(:disabled),
+.dev-toggle-button:hover:not(:disabled),
+.post-actions button:hover:not(:disabled),
+.study-card-actions button:hover:not(:disabled),
+.detail-actions button:hover:not(:disabled),
+.history-row-actions button:hover:not(:disabled) {
+  background: #e5e8eb;
+  color: #191f28;
+  box-shadow: 0 6px 14px rgba(25, 31, 40, 0.08);
 }
 
 .wide {
@@ -1806,6 +1842,18 @@ textarea[aria-invalid="true"] {
   gap: 10px;
   padding: 11px 8px;
   border-radius: 10px;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  justify-content: stretch;
+}
+
+.notice-row:hover {
+  background: #f2f4f6;
+}
+
+.notice-row.read {
+  opacity: 0.72;
 }
 
 .notice-row svg {

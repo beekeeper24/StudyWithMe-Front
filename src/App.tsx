@@ -56,6 +56,7 @@ import {
   joinStudy,
   leaveStudy,
   logoutSession,
+  markNotificationRead,
   oauthLoginUrl,
   refreshAccessToken,
   replyToComment,
@@ -631,13 +632,15 @@ function App() {
   }
 
   async function loadMyStudies(token = accessToken.trim()) {
-    if (!token) return
+    if (!token) return null
     try {
       const history = await fetchMyStudies(token)
       setMyStudyHistory(history)
       appendLog('내 스터디 이력 동기화')
+      return history
     } catch (error) {
       reportRequestError(error, '내 스터디 이력을 불러오지 못했습니다.')
+      return null
     }
   }
 
@@ -875,6 +878,72 @@ function App() {
       showToast('success', '참여 신청을 취소했습니다.')
     } catch (error) {
       reportRequestError(error, '참여 신청을 취소하지 못했습니다.')
+    }
+  }
+
+  async function openNotification(item: NotificationItem) {
+    await markNotificationReadLocally(item)
+    setShowNotificationMenu(false)
+    setShowProfileMenu(false)
+
+    if (item.targetType !== 'STUDY') {
+      return
+    }
+
+    const notificationType = item.type.toUpperCase()
+    if (notificationType === 'STUDY_JOIN_REQUESTED') {
+      setActiveView('studies')
+      setStudyListScope('active')
+      await selectStudy(item.targetId)
+      return
+    }
+
+    if (notificationType === 'STUDY_JOIN_APPROVED') {
+      const history = await loadMyStudies()
+      setActiveView('studies')
+      setStudyListScope('active')
+      const activeStudy = history?.activeStudies.find((study) => study.id === item.targetId)
+      if (activeStudy) {
+        await openStudyHistoryDetail(activeStudy)
+        return
+      }
+      await selectStudy(item.targetId)
+      return
+    }
+
+    if (notificationType === 'STUDY_ENDED' || notificationType === 'STUDY_DELETED') {
+      const history = await loadMyStudies()
+      setActiveView('mypage')
+      const pastStudy = history?.pastStudies.find((study) => study.id === item.targetId)
+      if (pastStudy) {
+        await openStudyHistoryDetail(pastStudy)
+      }
+      return
+    }
+
+    setActiveView('studies')
+    setStudyListScope('recruiting')
+    await loadStudies()
+    await selectStudy(item.targetId)
+  }
+
+  async function markNotificationReadLocally(item: NotificationItem) {
+    if (!item.id || item.read) return
+    try {
+      const updated = await markNotificationRead(accessToken.trim(), item.id)
+      setNotifications((current) =>
+        current.map((notification) =>
+          notification.id === updated.id ? updated : notification,
+        ),
+      )
+    } catch {
+      setNotifications((current) =>
+        current.map((notification) =>
+          notification.id === item.id
+            ? { ...notification, read: true, readAt: new Date().toISOString() }
+            : notification,
+        ),
+      )
     }
   }
 
@@ -2644,13 +2713,18 @@ function App() {
             <p className="muted">아직 수신한 알림이 없습니다.</p>
           ) : (
             notifications.map((item, index) => (
-              <article className="notice-row" key={`${item.id ?? 'notice'}-${index}`}>
+              <button
+                className={item.read ? 'notice-row read' : 'notice-row'}
+                key={`${item.id ?? 'notice'}-${index}`}
+                type="button"
+                onClick={() => void openNotification(item)}
+              >
                 <Bell size={17} />
                 <div>
                   <strong>{item.message}</strong>
-                  <span>{notificationLabel(item)}</span>
+                  <span>{notificationLabel(item)} · {notificationActionLabel(item)}</span>
                 </div>
-              </article>
+              </button>
             ))
           )}
         </div>
@@ -3006,6 +3080,16 @@ function notificationLabel(item: NotificationItem) {
   if (item.targetType === 'STUDY') return '스터디'
   if (item.targetType === 'COMMENT') return '커뮤니티'
   return '알림'
+}
+
+function notificationActionLabel(item: NotificationItem) {
+  const notificationType = item.type.toUpperCase()
+  if (notificationType === 'STUDY_JOIN_REQUESTED') return '처리하기'
+  if (notificationType === 'STUDY_JOIN_APPROVED') return '참여 스터디 보기'
+  if (notificationType === 'STUDY_ENDED' || notificationType === 'STUDY_DELETED') {
+    return '지난 스터디 보기'
+  }
+  return '보기'
 }
 
 function avatarDataUrl(value: string) {
