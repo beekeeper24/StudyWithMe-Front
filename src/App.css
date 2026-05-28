@@ -1844,7 +1844,7 @@ textarea[aria-invalid="true"] {
 
 .notice-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 10px;
   align-items: center;
   padding: 8px;
@@ -1889,6 +1889,21 @@ textarea[aria-invalid="true"] {
   background: #ffffff;
   border: 1px solid #d8dee5;
   font-size: 12px;
+}
+
+.notice-delete-button {
+  width: 30px;
+  min-height: 30px;
+  padding: 0;
+  color: #6b7684;
+  background: #ffffff;
+  border: 1px solid #d8dee5;
+}
+
+.notice-delete-button:hover:not(:disabled) {
+  color: #d92d20;
+  border-color: #ffd2d2;
+  background: #fff1f1;
 }
 
 .notice-row svg {

@@ -115,6 +115,15 @@ export async function markNotificationRead(
   })
 }
 
+export async function deleteNotification(
+  accessToken: string,
+  notificationId: number,
+): Promise<void> {
+  await request<void>(`/api/v1/notifications/${notificationId}`, accessToken, {
+    method: 'DELETE',
+  })
+}
+
 export async function fetchChatRooms(accessToken: string): Promise<ChatRoom[]> {
   return request<ChatRoom[]>('/api/v1/chat/rooms', accessToken)
 }

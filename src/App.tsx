@@ -38,6 +38,7 @@ import {
   createStudy,
   createStudyChatRoom,
   deleteChatRoom,
+  deleteNotification,
   deletePost,
   deleteStudy,
   endStudy,
@@ -609,13 +610,15 @@ function App() {
   }
 
   async function loadChatRooms(token = accessToken.trim()) {
-    if (!token) return
+    if (!token) return []
     try {
       const rooms = await fetchChatRooms(token)
       setChatRooms(rooms)
       appendLog(`채팅방 ${rooms.length}개 동기화`)
+      return rooms
     } catch (error) {
       reportRequestError(error, '채팅방을 불러오지 못했습니다.')
+      return []
     }
   }
 
@@ -885,6 +888,13 @@ function App() {
     setShowNotificationMenu(false)
     setShowProfileMenu(false)
 
+    if (item.targetType === 'CHAT_ROOM') {
+      setActiveView('chat')
+      await loadChatRooms()
+      await loadChatMessages(item.targetId)
+      return
+    }
+
     if (item.targetType !== 'STUDY') {
       return
     }
@@ -951,6 +961,18 @@ function App() {
     if (unreadItems.length === 0) return
 
     await Promise.all(unreadItems.map((item) => markNotificationReadLocally(item)))
+  }
+
+  async function removeNotification(item: NotificationItem) {
+    if (!item.id) return
+    try {
+      await deleteNotification(accessToken.trim(), item.id)
+      setNotifications((current) =>
+        current.filter((notification) => notification.id !== item.id),
+      )
+    } catch (error) {
+      reportRequestError(error, '알림을 삭제하지 못했습니다.')
+    }
   }
 
   function isStudyJoined(studyId: number) {
@@ -2753,6 +2775,15 @@ function App() {
                     읽음
                   </button>
                 )}
+                <button
+                  className="notice-delete-button"
+                  type="button"
+                  onClick={() => void removeNotification(item)}
+                  aria-label="알림 삭제"
+                  title="삭제"
+                >
+                  <X size={14} />
+                </button>
               </article>
             ))
           )}
@@ -3108,6 +3139,7 @@ function chatRoomMeta(room: ChatRoom, studies: StudyItem[]) {
 function notificationLabel(item: NotificationItem) {
   if (item.targetType === 'STUDY') return '스터디'
   if (item.targetType === 'COMMENT') return '커뮤니티'
+  if (item.targetType === 'CHAT_ROOM') return '채팅'
   return '알림'
 }
 
