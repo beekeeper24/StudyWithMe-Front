@@ -1708,30 +1708,42 @@ textarea[aria-invalid="true"] {
 
 .comment-row {
   display: grid;
-  gap: 7px;
-  padding: 14px 0;
+  gap: 8px;
+  padding: 15px 0;
   border-bottom: 1px solid #edf0f3;
 }
 
-.comment-actions {
-  display: flex;
+.comment-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
   align-items: center;
-  gap: 6px;
 }
 
-.comment-actions button {
-  min-height: 30px;
+.comment-meta-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+  color: #8b95a1;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.comment-meta-actions button {
+  min-height: 28px;
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 0 9px;
+  padding: 0 8px;
   border-radius: 8px;
   color: #6b7684;
   background: #f2f4f6;
   font-size: 12px;
 }
 
-.comment-actions button:hover:not(:disabled) {
+.comment-meta-actions button:hover:not(:disabled) {
   background: #e5e8eb;
   color: #191f28;
   transform: translateY(-1px);
@@ -1769,7 +1781,8 @@ textarea[aria-invalid="true"] {
 
 .reply-row {
   display: grid;
-  gap: 3px;
+  gap: 5px;
+  padding: 4px 0;
 }
 
 .reply-composer {
@@ -2386,5 +2399,15 @@ textarea[aria-invalid="true"] {
 
   .post-editor-textarea {
     min-height: 260px;
+  }
+
+  .comment-header {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .comment-meta-actions {
+    justify-content: flex-end;
+    white-space: normal;
   }
 }

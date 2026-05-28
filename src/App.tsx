@@ -2603,40 +2603,45 @@ function App() {
     const replies = comments.filter((item) => item.parentCommentId === comment.id)
     return (
       <article className="comment-row" key={comment.id}>
-        <div className="comment-author">
-          <img src={authorAvatarSrc(comment)} alt="" />
-          <div>
-            <strong>{authorDisplayName(comment)}</strong>
-            <span>{formatTime(comment.createdAt)}</span>
+        <div className="comment-header">
+          <div className="comment-author">
+            <img src={authorAvatarSrc(comment)} alt="" />
+            <div>
+              <strong>{authorDisplayName(comment)}</strong>
+            </div>
+          </div>
+          <div className="comment-meta-actions">
+            <time>{formatDateTime(comment.createdAt)}</time>
+            {comment.ownedByRequester === true && (
+              <button type="button" onClick={() => removeComment(comment.id)}>
+                <Trash2 size={14} />
+                삭제
+              </button>
+            )}
           </div>
         </div>
         <p>{comment.content}</p>
-        {comment.ownedByRequester === true && (
-          <div className="comment-actions">
-            <button type="button" onClick={() => removeComment(comment.id)}>
-              <Trash2 size={14} />
-              삭제
-            </button>
-          </div>
-        )}
         <div className="reply-stack">
           {replies.map((reply) => (
             <div className="reply-row" key={reply.id}>
-              <div className="comment-author compact">
-                <img src={authorAvatarSrc(reply)} alt="" />
-                <div>
-                  <strong>{authorDisplayName(reply)}</strong>
+              <div className="comment-header">
+                <div className="comment-author compact">
+                  <img src={authorAvatarSrc(reply)} alt="" />
+                  <div>
+                    <strong>{authorDisplayName(reply)}</strong>
+                  </div>
+                </div>
+                <div className="comment-meta-actions">
+                  <time>{formatDateTime(reply.createdAt)}</time>
+                  {reply.ownedByRequester === true && (
+                    <button type="button" onClick={() => removeComment(reply.id)}>
+                      <Trash2 size={14} />
+                      삭제
+                    </button>
+                  )}
                 </div>
               </div>
               <p>{reply.content}</p>
-              {reply.ownedByRequester === true && (
-                <div className="comment-actions">
-                  <button type="button" onClick={() => removeComment(reply.id)}>
-                    <Trash2 size={14} />
-                    삭제
-                  </button>
-                </div>
-              )}
             </div>
           ))}
           <div className="reply-composer">
@@ -2970,6 +2975,16 @@ function renderStudyDetail(label: string, value: string) {
 function formatTime(value?: string | null) {
   if (!value) return 'now'
   return new Intl.DateTimeFormat('ko-KR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value))
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return '방금'
+  return new Intl.DateTimeFormat('ko-KR', {
+    month: '2-digit',
+    day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(value))
