@@ -4,6 +4,8 @@ export type OAuthProvider = 'google' | 'kakao'
 
 export type WorkspaceView = 'lobby' | 'studies' | 'posts' | 'chat' | 'mypage'
 
+export type PostBoardType = 'FREE' | 'QUESTION' | 'REVIEW' | 'NOTICE'
+
 export type AccessTokenResponse = {
   accessToken: string
   accessTokenExpiresAt: string
@@ -97,6 +99,7 @@ export type PostItem = {
   authorNickname?: string | null
   authorProfileImageUrl?: string | null
   ownedByRequester?: boolean
+  boardType: PostBoardType
   title: string
   content: string
   status: string

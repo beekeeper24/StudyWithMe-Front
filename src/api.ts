@@ -8,6 +8,7 @@ import type {
   ChatRoomMember,
   NotificationItem,
   OAuthProvider,
+  PostBoardType,
   PostItem,
   StudyHistory,
   StudyItem,
@@ -285,8 +286,12 @@ export async function deleteStudy(
   })
 }
 
-export async function fetchPosts(accessToken?: string): Promise<PostItem[]> {
-  return request<PostItem[]>('/api/v1/posts', accessToken)
+export async function fetchPosts(
+  accessToken?: string,
+  boardType?: PostBoardType,
+): Promise<PostItem[]> {
+  const query = boardType ? `?boardType=${encodeURIComponent(boardType)}` : ''
+  return request<PostItem[]>(`/api/v1/posts${query}`, accessToken)
 }
 
 export async function fetchPost(postId: number, accessToken?: string): Promise<PostItem> {
@@ -295,7 +300,7 @@ export async function fetchPost(postId: number, accessToken?: string): Promise<P
 
 export async function createPost(
   accessToken: string,
-  payload: { title: string; content: string },
+  payload: { boardType: PostBoardType; title: string; content: string },
 ): Promise<PostItem> {
   return request<PostItem>('/api/v1/posts', accessToken, {
     method: 'POST',

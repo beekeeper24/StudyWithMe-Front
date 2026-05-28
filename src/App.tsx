@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   CircleAlert,
   Circle,
+  ArrowLeft,
   House,
   KeyRound,
   LogIn,
@@ -16,7 +17,9 @@ import {
   PanelLeftOpen,
   Plug,
   Plus,
+  PencilLine,
   RefreshCw,
+  Search,
   SlidersHorizontal,
   Send,
   Settings2,
@@ -80,6 +83,7 @@ import type {
   ConnectionStatus,
   NotificationItem,
   OAuthProvider,
+  PostBoardType,
   PostItem,
   StudyHistory,
   StudyItem,
@@ -95,11 +99,21 @@ const navItems: Array<{ id: WorkspaceView; label: string; icon: typeof BookOpen 
 ]
 
 const communityBoards = [
-  { id: 'free', label: '자유게시판' },
-  { id: 'question', label: '질문게시판' },
-  { id: 'review', label: '후기게시판' },
-  { id: 'notice', label: '공지사항' },
+  { id: 'free', label: '자유게시판', boardType: 'FREE' },
+  { id: 'question', label: '질문게시판', boardType: 'QUESTION' },
+  { id: 'review', label: '후기게시판', boardType: 'REVIEW' },
+  { id: 'notice', label: '공지사항', boardType: 'NOTICE' },
 ] as const
+
+type CommunityBoardId = (typeof communityBoards)[number]['id']
+
+function communityBoardType(boardId: CommunityBoardId): PostBoardType {
+  return communityBoards.find((board) => board.id === boardId)?.boardType ?? 'FREE'
+}
+
+function communityBoardId(boardType: PostBoardType): CommunityBoardId {
+  return communityBoards.find((board) => board.boardType === boardType)?.id ?? 'free'
+}
 
 const recruitingStudyStatuses = new Set(['OPEN', 'RECRUITING'])
 
@@ -220,7 +234,8 @@ function App() {
   const [editingPostId, setEditingPostId] = useState<number | null>(null)
   const [postBoardMode, setPostBoardMode] = useState<PostBoardMode>('list')
   const [selectedCommunityBoard, setSelectedCommunityBoard] =
-    useState<(typeof communityBoards)[number]['id']>('free')
+    useState<CommunityBoardId>('free')
+  const [postSearchKeyword, setPostSearchKeyword] = useState('')
   const [comments, setComments] = useState<CommentItem[]>([])
   const [studyForm, setStudyForm] = useState(emptyStudyForm)
   const [studyFormErrors, setStudyFormErrors] = useState<StudyFormErrors>({})
@@ -314,6 +329,13 @@ function App() {
     () => comments.filter((item) => item.parentCommentId == null),
     [comments],
   )
+  const filteredPosts = useMemo(() => {
+    const keyword = postSearchKeyword.trim().toLowerCase()
+    if (!keyword) return posts
+    return posts.filter((post) =>
+      `${post.title} ${post.content} ${authorDisplayName(post)}`.toLowerCase().includes(keyword),
+    )
+  }, [postSearchKeyword, posts])
   const unreadNotifications = useMemo(
     () => notifications.filter((item) => !item.read).length,
     [notifications],
@@ -333,7 +355,7 @@ function App() {
       try {
         const [studyItems, postItems] = await Promise.all([
           fetchVisibleStudies(accessToken.trim()),
-          fetchPosts(accessToken.trim()),
+          fetchPosts(accessToken.trim(), 'FREE'),
         ])
         if (cancelled) return
         setStudies(studyItems)
@@ -506,6 +528,7 @@ function App() {
     setSelectedPost(null)
     setComments([])
     setPostBoardMode('list')
+    setPostSearchKeyword('')
     setShowNotificationMenu(false)
     setShowProfileMenu(false)
     setShowAccountManagementModal(false)
@@ -989,9 +1012,9 @@ function App() {
     return study.joinRequestedByRequester === true
   }
 
-  async function loadPosts() {
+  async function loadPosts(boardId: CommunityBoardId = selectedCommunityBoard) {
     try {
-      const items = await fetchPosts(accessToken.trim())
+      const items = await fetchPosts(accessToken.trim(), communityBoardType(boardId))
       setPosts(items)
     } catch (error) {
       reportRequestError(error, '커뮤니티 글을 불러오지 못했습니다.')
@@ -1004,6 +1027,7 @@ function App() {
         fetchPost(postId, accessToken.trim()),
         fetchComments(postId, accessToken.trim()),
       ])
+      setSelectedCommunityBoard(communityBoardId(post.boardType))
       setSelectedPost(post)
       setComments(postComments)
       setPostBoardMode('detail')
@@ -1021,6 +1045,7 @@ function App() {
             content: postForm.content.trim(),
           })
         : await createPost(accessToken.trim(), {
+            boardType: communityBoardType(selectedCommunityBoard),
             title: postForm.title.trim(),
             content: postForm.content.trim(),
           })
@@ -1052,6 +1077,7 @@ function App() {
   }
 
   function beginEditPost(post: PostItem) {
+    setSelectedCommunityBoard(communityBoardId(post.boardType))
     setSelectedPost(post)
     setEditingPostId(post.id)
     setPostForm({ title: post.title, content: post.content })
@@ -2322,31 +2348,22 @@ function App() {
   }
 
   function renderPosts() {
+    const selectedBoardLabel =
+      communityBoards.find((board) => board.id === selectedCommunityBoard)?.label ?? '자유게시판'
+    const isWritingPost = postBoardMode === 'write'
+    const isViewingPost = postBoardMode === 'detail'
+
     return (
       <section className="main-column board-page">
-        <div className="section-heading">
+        <div className="community-topline">
           <div>
-            <span className="eyebrow">Community</span>
             <h2>커뮤니티</h2>
+            <span>{selectedBoardLabel}</span>
           </div>
-          <div className="row-actions">
-            {postBoardMode !== 'list' && (
-              <button
-                className="icon-text-button"
-                type="button"
-                onClick={() => {
-                  setPostBoardMode('list')
-                  setEditingPostId(null)
-                }}
-              >
-                목록
-              </button>
-            )}
-            <button className="primary" type="button" onClick={beginCreatePost}>
-              <Plus size={16} />
-              글쓰기
-            </button>
-          </div>
+          <button className="primary" type="button" onClick={beginCreatePost}>
+            <Plus size={16} />
+            글쓰기
+          </button>
         </div>
 
         <div className="community-board-tabs" aria-label="하위 게시판">
@@ -2359,6 +2376,9 @@ function App() {
                 setSelectedCommunityBoard(board.id)
                 setPostBoardMode('list')
                 setEditingPostId(null)
+                setSelectedPost(null)
+                setPostSearchKeyword('')
+                void loadPosts(board.id)
               }}
             >
               {board.label}
@@ -2367,41 +2387,71 @@ function App() {
         </div>
 
         {postBoardMode === 'list' && (
-          <div className="board-list">
-            {posts.length === 0 ? (
-              <EmptyState icon={Newspaper} text="글이 없습니다." />
-            ) : (
-              posts.map((post) => (
-                <button
-                  className="board-row"
-                  key={post.id}
-                  type="button"
-                  onClick={() => {
-                    setEditingPostId(null)
-                    setPostForm(emptyPostForm)
-                    void selectPost(post.id)
-                  }}
-                >
-                  <span className={`state-chip ${post.status.toLowerCase()}`}>
-                    {post.status}
-                  </span>
-                  <strong>{post.title}</strong>
-                  <span className="board-author">
-                    <img src={authorAvatarSrc(post)} alt="" />
-                    <span>{authorDisplayName(post)}</span>
-                  </span>
-                  <time>{formatTime(post.createdAt)}</time>
-                </button>
-              ))
-            )}
+          <div className="community-list-surface">
+            <div className="board-toolbar">
+              <label className="board-search">
+                <Search size={16} />
+                <input
+                  value={postSearchKeyword}
+                  onChange={(event) => setPostSearchKeyword(event.target.value)}
+                  placeholder="검색"
+                />
+              </label>
+              <span>{filteredPosts.length}개</span>
+            </div>
+
+            <div className="board-list" aria-label="게시글 목록">
+              <div className="board-list-head" aria-hidden="true">
+                <span>제목</span>
+                <span>작성자</span>
+                <span>시간</span>
+              </div>
+              {filteredPosts.length === 0 ? (
+                <EmptyState icon={Newspaper} text={posts.length === 0 ? '글이 없습니다.' : '검색 결과가 없습니다.'} />
+              ) : (
+                filteredPosts.map((post) => (
+                  <button
+                    className="board-row"
+                    key={post.id}
+                    type="button"
+                    onClick={() => {
+                      setEditingPostId(null)
+                      setPostForm(emptyPostForm)
+                      void selectPost(post.id)
+                    }}
+                  >
+                    <span className="board-title-cell">
+                      <strong>{post.title}</strong>
+                      <small>{post.content}</small>
+                    </span>
+                    <span className="board-author">
+                      <img src={authorAvatarSrc(post)} alt="" />
+                      <span>{authorDisplayName(post)}</span>
+                    </span>
+                    <time>{formatTime(post.createdAt)}</time>
+                  </button>
+                ))
+              )}
+            </div>
           </div>
         )}
 
-        {postBoardMode === 'write' && (
-          <article className="board-editor">
-            <div className="section-heading compact">
+        {isWritingPost && (
+          <article className="board-editor" aria-label={editingPostId ? '글 수정' : '글 작성'}>
+            <div className="board-subpage-header">
+              <button
+                className="icon-text-button"
+                type="button"
+                onClick={() => {
+                  setPostBoardMode(editingPostId && selectedPost ? 'detail' : 'list')
+                  setEditingPostId(null)
+                  setPostForm(emptyPostForm)
+                }}
+              >
+                <ArrowLeft size={16} />
+                {editingPostId && selectedPost ? '상세' : '목록'}
+              </button>
               <div>
-                <span className="eyebrow">Write</span>
                 <h2>{editingPostId ? '글 수정' : '글 작성'}</h2>
               </div>
             </div>
@@ -2417,14 +2467,13 @@ function App() {
                 />
               </label>
               <label>
-                <span>내용</span>
                 <textarea
-                  className="tall"
+                  className="post-editor-textarea"
                   value={postForm.content}
                   onChange={(event) =>
                     setPostForm((current) => ({ ...current, content: event.target.value }))
                   }
-                  placeholder="스터디 모집 후기, 질문, 공지 내용을 작성하세요."
+                  placeholder="내용을 입력하세요."
                 />
               </label>
               <div className="row-actions editor-actions">
@@ -2452,26 +2501,36 @@ function App() {
           </article>
         )}
 
-        {postBoardMode === 'detail' && (
-          <article className="board-detail">
+        {isViewingPost && (
+          <article className="board-detail" aria-label="게시글 상세">
             {selectedPost ? (
               <>
+                <div className="board-subpage-header">
+                  <button
+                    className="icon-text-button"
+                    type="button"
+                    onClick={() => {
+                      setPostBoardMode('list')
+                      setEditingPostId(null)
+                    }}
+                  >
+                    <ArrowLeft size={16} />
+                    목록
+                  </button>
+                </div>
                 <header className="board-detail-header">
-                  <span className={`state-chip ${selectedPost.status.toLowerCase()}`}>
-                    {selectedPost.status}
-                  </span>
                   <h2>{selectedPost.title}</h2>
-                  <div className="post-author-line">
+                  <div className="post-author-line board-detail-meta">
                     <img src={authorAvatarSrc(selectedPost)} alt="" />
-                    <span>
-                      {authorDisplayName(selectedPost)} · {formatTime(selectedPost.createdAt)}
-                    </span>
+                    <span>{authorDisplayName(selectedPost)}</span>
+                    <time>{formatTime(selectedPost.createdAt)}</time>
                   </div>
                 </header>
                 <p className="post-body">{selectedPost.content}</p>
                 {selectedPost.ownedByRequester === true && (
                   <div className="post-actions">
                     <button type="button" onClick={() => beginEditPost(selectedPost)}>
+                      <PencilLine size={16} />
                       수정
                     </button>
                     <button type="button" onClick={removePost}>
@@ -2483,7 +2542,6 @@ function App() {
                 <section className="comments-section" aria-label="댓글">
                   <div className="section-heading compact">
                     <div>
-                      <span className="eyebrow">Comments</span>
                       <h2>댓글 {comments.length}</h2>
                     </div>
                   </div>
@@ -2552,7 +2610,11 @@ function App() {
               }
               placeholder="답글"
             />
-            <button type="button" onClick={() => submitReply(comment.id)} disabled={!canConnect}>
+            <button
+              type="button"
+              onClick={() => submitReply(comment.id)}
+              disabled={!canConnect || !(replyDrafts[comment.id] ?? '').trim()}
+            >
               <Send size={15} />
             </button>
           </div>
