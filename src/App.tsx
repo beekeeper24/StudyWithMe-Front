@@ -657,7 +657,7 @@ function App() {
 
   async function openStudyHistoryDetail(study: StudyItem) {
     setSelectedStudy(study)
-    if (study.ownedByRequester && !isStudyDeleted(study.status)) {
+    if (study.ownedByRequester && !isStudyEnded(study.status) && !isStudyDeleted(study.status)) {
       await loadStudyJoinRequests(study.id)
     } else {
       setStudyJoinRequests([])
@@ -686,6 +686,8 @@ function App() {
     if (!canConnect) return
     try {
       const room = await createStudyChatRoom(accessToken.trim(), studyId)
+      setSelectedStudy(null)
+      setStudyJoinRequests([])
       setActiveView('chat')
       await loadChatRooms()
       await loadChatMessages(room.id)
@@ -699,6 +701,8 @@ function App() {
     if (!canConnect) return
     try {
       const room = await createPrivateChatRoom(accessToken.trim(), targetMemberId)
+      setSelectedStudy(null)
+      setStudyJoinRequests([])
       setActiveView('chat')
       await loadChatRooms()
       await loadChatMessages(room.id)
@@ -1761,7 +1765,7 @@ function App() {
               </button>
             </>
           )}
-          {study.ownedByRequester && (
+          {study.ownedByRequester && isEnded && !isStudyDeleted(study.status) && (
             <button
               className="danger-text-button"
               type="button"
@@ -1908,7 +1912,7 @@ function App() {
                     </button>
                   </>
                 )}
-                {selectedStudy.ownedByRequester && !isEnded && !isStudyDeleted(selectedStudy.status) && (
+                {selectedStudy.ownedByRequester && isEnded && !isStudyDeleted(selectedStudy.status) && (
                   <button
                     className="danger-text-button"
                     type="button"
@@ -2197,7 +2201,7 @@ function App() {
                     종료
                   </button>
                 )}
-                {study.ownedByRequester && !isHistorical && (
+                {study.ownedByRequester && isHistorical && isStudyEnded(study.status) && !isStudyDeleted(study.status) && (
                   <button
                     className="danger-text-button"
                     type="button"
