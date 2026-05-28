@@ -67,6 +67,7 @@ import {
   replyToComment,
   rejectStudyJoinRequest,
   updateNickname,
+  updateComment,
   updatePost,
   updateStudy,
   withdrawAccount,
@@ -249,6 +250,8 @@ function App() {
   const [privacyPolicyAgreed, setPrivacyPolicyAgreed] = useState(false)
   const [commentText, setCommentText] = useState('')
   const [replyDrafts, setReplyDrafts] = useState<Record<number, string>>({})
+  const [editingCommentId, setEditingCommentId] = useState<number | null>(null)
+  const [commentEditText, setCommentEditText] = useState('')
   const [showDevTools, setShowDevTools] = useState(false)
   const [showNotificationMenu, setShowNotificationMenu] = useState(false)
   const [showProfileMenu, setShowProfileMenu] = useState(false)
@@ -531,6 +534,8 @@ function App() {
     setComments([])
     setPostBoardMode('list')
     setPostSearchKeyword('')
+    setEditingCommentId(null)
+    setCommentEditText('')
     setShowNotificationMenu(false)
     setShowProfileMenu(false)
     setShowAccountManagementModal(false)
@@ -1097,6 +1102,8 @@ function App() {
     setComments([])
     setCommentText('')
     setReplyDrafts({})
+    setEditingCommentId(null)
+    setCommentEditText('')
     setPostBoardMode('write')
   }
 
@@ -1125,10 +1132,39 @@ function App() {
     }
   }
 
+  function beginEditComment(comment: CommentItem) {
+    setEditingCommentId(comment.id)
+    setCommentEditText(comment.content)
+  }
+
+  function cancelEditComment() {
+    setEditingCommentId(null)
+    setCommentEditText('')
+  }
+
+  async function submitCommentEdit(commentId: number) {
+    const content = commentEditText.trim()
+    if (!canConnect || !selectedPostId || !content) return
+    try {
+      await updateComment(accessToken.trim(), commentId, { content })
+      setEditingCommentId(null)
+      setCommentEditText('')
+      await selectPost(selectedPostId)
+      appendLog('댓글 수정 완료')
+      showToast('success', '댓글이 수정되었습니다.')
+    } catch (error) {
+      reportRequestError(error, '댓글을 수정하지 못했습니다.')
+    }
+  }
+
   async function removeComment(commentId: number) {
     if (!canConnect || !selectedPostId) return
     try {
       await deleteComment(accessToken.trim(), commentId)
+      if (editingCommentId === commentId) {
+        setEditingCommentId(null)
+        setCommentEditText('')
+      }
       await selectPost(selectedPostId)
       appendLog('댓글 삭제 완료')
       showToast('success', '댓글이 삭제되었습니다.')
@@ -2613,14 +2649,18 @@ function App() {
           <div className="comment-meta-actions">
             <time>{formatDateTime(comment.createdAt)}</time>
             {comment.ownedByRequester === true && (
-              <button type="button" onClick={() => removeComment(comment.id)}>
-                <Trash2 size={14} />
-                삭제
-              </button>
+              <div className="comment-action-row">
+                <button type="button" onClick={() => beginEditComment(comment)}>
+                  수정
+                </button>
+                <button type="button" onClick={() => removeComment(comment.id)}>
+                  삭제
+                </button>
+              </div>
             )}
           </div>
         </div>
-        <p>{comment.content}</p>
+        {renderCommentBody(comment)}
         <div className="reply-stack">
           {replies.map((reply) => (
             <div className="reply-row" key={reply.id}>
@@ -2634,14 +2674,18 @@ function App() {
                 <div className="comment-meta-actions">
                   <time>{formatDateTime(reply.createdAt)}</time>
                   {reply.ownedByRequester === true && (
-                    <button type="button" onClick={() => removeComment(reply.id)}>
-                      <Trash2 size={14} />
-                      삭제
-                    </button>
+                    <div className="comment-action-row">
+                      <button type="button" onClick={() => beginEditComment(reply)}>
+                        수정
+                      </button>
+                      <button type="button" onClick={() => removeComment(reply.id)}>
+                        삭제
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
-              <p>{reply.content}</p>
+              {renderCommentBody(reply)}
             </div>
           ))}
           <div className="reply-composer">
@@ -2662,6 +2706,35 @@ function App() {
           </div>
         </div>
       </article>
+    )
+  }
+
+  function renderCommentBody(comment: CommentItem) {
+    if (editingCommentId !== comment.id) {
+      return <p>{comment.content}</p>
+    }
+
+    return (
+      <div className="comment-edit-box">
+        <textarea
+          value={commentEditText}
+          onChange={(event) => setCommentEditText(event.target.value)}
+          autoFocus
+        />
+        <div className="comment-edit-actions">
+          <button type="button" onClick={cancelEditComment}>
+            취소
+          </button>
+          <button
+            className="primary"
+            type="button"
+            onClick={() => submitCommentEdit(comment.id)}
+            disabled={!commentEditText.trim()}
+          >
+            저장
+          </button>
+        </div>
+      </div>
     )
   }
 
