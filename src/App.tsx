@@ -887,6 +887,7 @@ function App() {
   async function openNotification(item: NotificationItem) {
     setShowNotificationMenu(false)
     setShowProfileMenu(false)
+    void markNotificationReadLocally(item)
 
     if (item.targetType === 'CHAT_ROOM') {
       setActiveView('chat')
