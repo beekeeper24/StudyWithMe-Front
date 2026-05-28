@@ -882,7 +882,6 @@ function App() {
   }
 
   async function openNotification(item: NotificationItem) {
-    await markNotificationReadLocally(item)
     setShowNotificationMenu(false)
     setShowProfileMenu(false)
 
@@ -945,6 +944,13 @@ function App() {
         ),
       )
     }
+  }
+
+  async function markAllNotificationsRead() {
+    const unreadItems = notifications.filter((item) => item.id && !item.read)
+    if (unreadItems.length === 0) return
+
+    await Promise.all(unreadItems.map((item) => markNotificationReadLocally(item)))
   }
 
   function isStudyJoined(studyId: number) {
@@ -2700,31 +2706,54 @@ function App() {
   }
 
   function renderNotificationPopup() {
+    const unreadCount = notifications.filter((item) => !item.read).length
+
     return (
       <div className="notification-popover" role="dialog" aria-label="알림">
         <div className="popover-header">
           <div>
             <h2>알림</h2>
-            <span>{notifications.length}개</span>
+            <span>{unreadCount > 0 ? `새 알림 ${unreadCount}개` : `${notifications.length}개`}</span>
           </div>
+          <button
+            className="notification-read-all-button"
+            type="button"
+            onClick={() => void markAllNotificationsRead()}
+            disabled={unreadCount === 0}
+          >
+            모두 읽음
+          </button>
         </div>
         <div className="notification-list">
           {notifications.length === 0 ? (
             <p className="muted">아직 수신한 알림이 없습니다.</p>
           ) : (
             notifications.map((item, index) => (
-              <button
+              <article
                 className={item.read ? 'notice-row read' : 'notice-row'}
                 key={`${item.id ?? 'notice'}-${index}`}
-                type="button"
-                onClick={() => void openNotification(item)}
               >
-                <Bell size={17} />
-                <div>
-                  <strong>{item.message}</strong>
-                  <span>{notificationLabel(item)} · {notificationActionLabel(item)}</span>
-                </div>
-              </button>
+                <button
+                  className="notice-main"
+                  type="button"
+                  onClick={() => void openNotification(item)}
+                >
+                  <Bell size={17} />
+                  <div>
+                    <strong>{item.message}</strong>
+                    <span>{notificationLabel(item)}</span>
+                  </div>
+                </button>
+                {!item.read && (
+                  <button
+                    className="notice-read-button"
+                    type="button"
+                    onClick={() => void markNotificationReadLocally(item)}
+                  >
+                    읽음
+                  </button>
+                )}
+              </article>
             ))
           )}
         </div>
@@ -3080,16 +3109,6 @@ function notificationLabel(item: NotificationItem) {
   if (item.targetType === 'STUDY') return '스터디'
   if (item.targetType === 'COMMENT') return '커뮤니티'
   return '알림'
-}
-
-function notificationActionLabel(item: NotificationItem) {
-  const notificationType = item.type.toUpperCase()
-  if (notificationType === 'STUDY_JOIN_REQUESTED') return '처리하기'
-  if (notificationType === 'STUDY_JOIN_APPROVED') return '참여 스터디 보기'
-  if (notificationType === 'STUDY_ENDED' || notificationType === 'STUDY_DELETED') {
-    return '지난 스터디 보기'
-  }
-  return '보기'
 }
 
 function avatarDataUrl(value: string) {

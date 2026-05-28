@@ -414,6 +414,13 @@ button:hover:not(:disabled) {
   background: #f2f4f6;
 }
 
+.popover-header .notification-read-all-button {
+  width: auto;
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
 .profile-menu {
   display: grid;
   gap: 6px;
@@ -1786,8 +1793,7 @@ textarea[aria-invalid="true"] {
   border-radius: 10px;
 }
 
-.message-row:hover,
-.notice-row:hover {
+.message-row:hover {
   background: #ffffff;
 }
 
@@ -1838,22 +1844,51 @@ textarea[aria-invalid="true"] {
 
 .notice-row {
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
-  padding: 11px 8px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid #dde3ea;
   border-radius: 10px;
+  background: #f7fbff;
+}
+
+.notice-main {
+  min-height: 46px;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  justify-content: stretch;
+  gap: 10px;
+  padding: 0;
   color: inherit;
   background: transparent;
   text-align: left;
-  justify-content: stretch;
 }
 
-.notice-row:hover {
-  background: #f2f4f6;
+.notice-row:hover,
+.notice-row:focus-within {
+  border-color: #9bbcff;
+  background: #eef6ff;
 }
 
 .notice-row.read {
-  opacity: 0.72;
+  border-color: #edf0f3;
+  background: #ffffff;
+  opacity: 0.74;
+}
+
+.notice-row.read .notice-main strong {
+  color: #6b7684;
+  font-weight: 700;
+}
+
+.notice-read-button {
+  min-height: 30px;
+  padding: 0 10px;
+  color: #4e5968;
+  background: #ffffff;
+  border: 1px solid #d8dee5;
+  font-size: 12px;
 }
 
 .notice-row svg {
