@@ -30,12 +30,18 @@ import { consumeOAuthCallback } from './auth'
 import {
   closeStudy,
   completeSignup,
+  approveStudyJoinRequest,
+  cancelStudyJoinRequest,
   createComment,
   createPost,
+  createPrivateChatRoom,
   createStudy,
   createStudyChatRoom,
   deleteChatRoom,
+  deleteNotification,
   deletePost,
+  deleteStudy,
+  endStudy,
   fetchChatRoomMembers,
   fetchChatMessages,
   fetchChatRooms,
@@ -46,13 +52,16 @@ import {
   fetchPost,
   fetchPosts,
   fetchStudy,
+  fetchStudyJoinRequests,
   fetchStudies,
   joinStudy,
   leaveStudy,
   logoutSession,
+  markNotificationRead,
   oauthLoginUrl,
   refreshAccessToken,
   replyToComment,
+  rejectStudyJoinRequest,
   updateNickname,
   updatePost,
   updateStudy,
@@ -74,6 +83,7 @@ import type {
   PostItem,
   StudyHistory,
   StudyItem,
+  StudyJoinRequest,
   WorkspaceView,
 } from './types'
 
@@ -108,9 +118,46 @@ const emptyStudyForm = {
   capacity: '',
   schedule: '',
 }
+type StudyForm = typeof emptyStudyForm
+type StudyFormField = keyof StudyForm
+type StudyFormErrors = Partial<Record<StudyFormField, string>>
+
+const studyFormFieldOrder: StudyFormField[] = [
+  'title',
+  'progressMethod',
+  'targetAudience',
+  'capacity',
+  'schedule',
+  'rules',
+]
+const studyFormFieldLabels: Record<StudyFormField, string> = {
+  title: '제목',
+  progressMethod: '진행 방식',
+  targetAudience: '모집 대상',
+  rules: '규칙',
+  capacity: '정원',
+  schedule: '일정',
+}
+const studyFormFieldExamples: Record<StudyFormField, string> = {
+  title: '매일 알고리즘 1문제',
+  progressMethod: '매주 화/목 21시에 온라인으로 진행',
+  targetAudience: 'Java 기초를 끝내고 알고리즘을 시작하려는 사람',
+  rules: '불참 시 전날 공유, 풀이 인증 필수',
+  capacity: '6',
+  schedule: '매주 화요일 21:00',
+}
+const studyFormFieldMaxLengths: Partial<Record<StudyFormField, number>> = {
+  title: 100,
+  progressMethod: 500,
+  targetAudience: 500,
+  rules: 1000,
+  schedule: 200,
+}
 const emptyPostForm = { title: '', content: '' }
 const emptyStudyHistory: StudyHistory = { activeStudies: [], pastStudies: [] }
 type StudyBoardMode = 'list' | 'write'
+type StudyListScope = 'recruiting' | 'active'
+type StudyAction = 'join' | 'leave' | 'close' | 'end' | 'delete'
 type PostBoardMode = 'list' | 'detail' | 'write'
 type ToastKind = 'success' | 'error' | 'info'
 type ToastMessage = {
@@ -119,6 +166,11 @@ type ToastMessage = {
   title: string
   message?: string
 }
+
+const studyListScopes: Array<{ id: StudyListScope; label: string }> = [
+  { id: 'recruiting', label: '모집 중' },
+  { id: 'active', label: '참여 중' },
+]
 
 async function fetchVisibleStudies(token?: string) {
   if (token) {
@@ -159,7 +211,9 @@ function App() {
   const [studies, setStudies] = useState<StudyItem[]>([])
   const [myStudyHistory, setMyStudyHistory] = useState<StudyHistory>(emptyStudyHistory)
   const [selectedStudy, setSelectedStudy] = useState<StudyItem | null>(null)
+  const [studyJoinRequests, setStudyJoinRequests] = useState<StudyJoinRequest[]>([])
   const [studyBoardMode, setStudyBoardMode] = useState<StudyBoardMode>('list')
+  const [studyListScope, setStudyListScope] = useState<StudyListScope>('recruiting')
   const [editingStudyId, setEditingStudyId] = useState<number | null>(null)
   const [posts, setPosts] = useState<PostItem[]>([])
   const [selectedPost, setSelectedPost] = useState<PostItem | null>(null)
@@ -169,6 +223,7 @@ function App() {
     useState<(typeof communityBoards)[number]['id']>('free')
   const [comments, setComments] = useState<CommentItem[]>([])
   const [studyForm, setStudyForm] = useState(emptyStudyForm)
+  const [studyFormErrors, setStudyFormErrors] = useState<StudyFormErrors>({})
   const [postForm, setPostForm] = useState(emptyPostForm)
   const [nicknameDraft, setNicknameDraft] = useState('')
   const [nicknameError, setNicknameError] = useState('')
@@ -204,17 +259,24 @@ function App() {
     () => studies.filter((study) => isStudyRecruiting(study.status)),
     [studies],
   )
+  const visibleStudyItems = useMemo(() => {
+    if (studyListScope === 'active') return myStudyHistory.activeStudies
+    return recruitingStudies
+  }, [myStudyHistory.activeStudies, recruitingStudies, studyListScope])
   const activeRoom = useMemo(
     () => chatRooms.find((room) => String(room.id) === roomId.trim()),
     [chatRooms, roomId],
   )
-  const activeRoomStudy = useMemo(() => {
-    if (!activeRoom?.studyId) return null
-    return [...studies, ...myStudyHistory.activeStudies, ...myStudyHistory.pastStudies]
-      .find((study) => study.id === activeRoom.studyId) ?? null
-  }, [activeRoom?.studyId, myStudyHistory.activeStudies, myStudyHistory.pastStudies, studies])
-  const isActiveRoomClosed = activeRoomStudy != null && !isStudyRecruiting(activeRoomStudy.status)
-  const activeRoomLabel = activeRoom ? chatRoomTitle(activeRoom, studies) : '방 미선택'
+  const knownStudies = useMemo(
+    () => [...studies, ...myStudyHistory.activeStudies, ...myStudyHistory.pastStudies],
+    [myStudyHistory.activeStudies, myStudyHistory.pastStudies, studies],
+  )
+  const activeRoomStudy = activeRoom?.studyId == null
+    ? null
+    : knownStudies.find((study) => study.id === activeRoom.studyId) ?? null
+  const isActiveRoomReadOnly = activeRoomStudy != null
+    && (isStudyEnded(activeRoomStudy.status) || isStudyDeleted(activeRoomStudy.status))
+  const activeRoomLabel = activeRoom ? chatRoomTitle(activeRoom, knownStudies) : '방 미선택'
   const activeProfileMemberId = profile?.memberId ?? profile?.id ?? null
 
   const appendLog = useCallback((item: string) => {
@@ -437,6 +499,8 @@ function App() {
     setMyStudyHistory(emptyStudyHistory)
     setSelectedStudy(null)
     setEditingStudyId(null)
+    setStudyForm(emptyStudyForm)
+    setStudyFormErrors({})
     setStudyBoardMode('list')
     setPosts([])
     setSelectedPost(null)
@@ -546,13 +610,15 @@ function App() {
   }
 
   async function loadChatRooms(token = accessToken.trim()) {
-    if (!token) return
+    if (!token) return []
     try {
       const rooms = await fetchChatRooms(token)
       setChatRooms(rooms)
       appendLog(`채팅방 ${rooms.length}개 동기화`)
+      return rooms
     } catch (error) {
       reportRequestError(error, '채팅방을 불러오지 못했습니다.')
+      return []
     }
   }
 
@@ -569,13 +635,15 @@ function App() {
   }
 
   async function loadMyStudies(token = accessToken.trim()) {
-    if (!token) return
+    if (!token) return null
     try {
       const history = await fetchMyStudies(token)
       setMyStudyHistory(history)
       appendLog('내 스터디 이력 동기화')
+      return history
     } catch (error) {
       reportRequestError(error, '내 스터디 이력을 불러오지 못했습니다.')
+      return null
     }
   }
 
@@ -583,8 +651,32 @@ function App() {
     try {
       const item = await fetchVisibleStudy(studyId, accessToken.trim())
       setSelectedStudy(item)
+      if (item.ownedByRequester) {
+        await loadStudyJoinRequests(item.id)
+      } else {
+        setStudyJoinRequests([])
+      }
     } catch (error) {
       reportRequestError(error, '스터디 상세를 불러오지 못했습니다.')
+    }
+  }
+
+  async function openStudyHistoryDetail(study: StudyItem) {
+    setSelectedStudy(study)
+    if (study.ownedByRequester && !isStudyEnded(study.status) && !isStudyDeleted(study.status)) {
+      await loadStudyJoinRequests(study.id)
+    } else {
+      setStudyJoinRequests([])
+    }
+  }
+
+  async function loadStudyJoinRequests(studyId: number) {
+    if (!canConnect) return
+    try {
+      const requests = await fetchStudyJoinRequests(accessToken.trim(), studyId)
+      setStudyJoinRequests(requests)
+    } catch {
+      setStudyJoinRequests([])
     }
   }
 
@@ -600,6 +692,8 @@ function App() {
     if (!canConnect) return
     try {
       const room = await createStudyChatRoom(accessToken.trim(), studyId)
+      setSelectedStudy(null)
+      setStudyJoinRequests([])
       setActiveView('chat')
       await loadChatRooms()
       await loadChatMessages(room.id)
@@ -609,23 +703,35 @@ function App() {
     }
   }
 
+  async function openPrivateChatRoom(targetMemberId: number) {
+    if (!canConnect) return
+    try {
+      const room = await createPrivateChatRoom(accessToken.trim(), targetMemberId)
+      setSelectedStudy(null)
+      setStudyJoinRequests([])
+      setActiveView('chat')
+      await loadChatRooms()
+      await loadChatMessages(room.id)
+      appendLog('1:1 채팅방 준비 완료')
+    } catch (error) {
+      reportRequestError(error, '1:1 채팅방을 열지 못했습니다.')
+    }
+  }
+
   async function submitStudy() {
-    if (
-      !canConnect ||
-      !studyForm.title.trim() ||
-      !studyForm.progressMethod.trim() ||
-      !studyForm.targetAudience.trim() ||
-      !studyForm.rules.trim() ||
-      !studyForm.capacity.trim() ||
-      !studyForm.schedule.trim()
-    ) {
+    if (!canConnect) {
+      showToast('error', '로그인이 필요합니다.', '다시 로그인해 주세요.')
       return
     }
+
+    const validation = validateStudyForm(studyForm)
+    if (Object.keys(validation.errors).length > 0) {
+      setStudyFormErrors(validation.errors)
+      showToast('error', '스터디 정보를 확인해 주세요.', validation.firstMessage)
+      return
+    }
+
     const capacity = Number(studyForm.capacity)
-    if (!Number.isInteger(capacity) || capacity < 1) {
-      showToast('error', '정원은 1명 이상으로 입력해 주세요.')
-      return
-    }
     const payload = {
       title: studyForm.title.trim(),
       progressMethod: studyForm.progressMethod.trim(),
@@ -646,13 +752,40 @@ function App() {
       appendLog(editingStudyId == null ? '스터디 생성 완료' : '스터디 수정 완료')
       showToast('success', editingStudyId == null ? '스터디가 생성되었습니다.' : '스터디가 수정되었습니다.')
     } catch (error) {
+      const serverErrors = studyFormErrorsFromApiError(error)
+      if (Object.keys(serverErrors).length > 0) {
+        const firstMessage = firstStudyFormErrorMessage(serverErrors)
+        setStudyFormErrors(serverErrors)
+        showToast('error', '입력값을 확인해 주세요.', firstMessage)
+        appendLog(firstMessage)
+        return
+      }
+
+      if (isInvalidInputError(error)) {
+        const message = '서버가 필드 정보를 주지 않았습니다. 제목, 진행 방식, 모집 대상, 정원, 일정, 규칙을 다시 확인해 주세요.'
+        showToast('error', '입력값을 확인해 주세요.', message)
+        appendLog(message)
+        return
+      }
+
       reportRequestError(error, editingStudyId == null ? '스터디를 생성하지 못했습니다.' : '스터디를 수정하지 못했습니다.')
     }
   }
 
   function resetStudyEditor() {
     setStudyForm(emptyStudyForm)
+    setStudyFormErrors({})
     setEditingStudyId(null)
+  }
+
+  function updateStudyFormField(field: StudyFormField, value: string) {
+    setStudyForm((current) => ({ ...current, [field]: value }))
+    setStudyFormErrors((current) => {
+      if (!current[field]) return current
+      const next = { ...current }
+      delete next[field]
+      return next
+    })
   }
 
   function openCreateStudyEditor() {
@@ -672,21 +805,29 @@ function App() {
       schedule: detail.schedule === '협의' ? '' : detail.schedule,
     })
     setEditingStudyId(study.id)
+    setStudyFormErrors({})
     setSelectedStudy(study)
     setStudyBoardMode('write')
   }
 
-  async function mutateStudy(studyId: number, action: 'join' | 'leave' | 'close') {
+  async function mutateStudy(studyId: number, action: StudyAction) {
     if (!canConnect) return
+    if (action === 'delete' && !window.confirm('스터디를 삭제할까요?')) return
     const wasSelected = selectedStudy?.id === studyId
     try {
       if (action === 'join') await joinStudy(accessToken.trim(), studyId)
       if (action === 'leave') await leaveStudy(accessToken.trim(), studyId)
       if (action === 'close') await closeStudy(accessToken.trim(), studyId)
+      if (action === 'end') await endStudy(accessToken.trim(), studyId)
+      if (action === 'delete') await deleteStudy(accessToken.trim(), studyId)
       await loadStudies()
       await loadChatRooms()
       await loadMyStudies()
-      if (action === 'close') {
+      await loadNotifications()
+      if (selectedStudy?.ownedByRequester) {
+        await loadStudyJoinRequests(studyId)
+      }
+      if (action === 'close' || action === 'end' || action === 'delete') {
         setSelectedStudy(null)
       } else if (wasSelected) {
         await selectStudy(studyId)
@@ -698,11 +839,154 @@ function App() {
     }
   }
 
+  async function approveJoinRequest(studyId: number, memberId: number) {
+    if (!canConnect) return
+    try {
+      await approveStudyJoinRequest(accessToken.trim(), studyId, memberId)
+      await Promise.all([
+        loadStudies(),
+        loadMyStudies(),
+        loadChatRooms(),
+        loadNotifications(),
+        loadStudyJoinRequests(studyId),
+      ])
+      if (selectedStudy?.id === studyId) {
+        await selectStudy(studyId)
+      }
+      showToast('success', '참여 신청을 승인했습니다.')
+    } catch (error) {
+      reportRequestError(error, '참여 신청을 승인하지 못했습니다.')
+    }
+  }
+
+  async function rejectJoinRequest(studyId: number, memberId: number) {
+    if (!canConnect) return
+    try {
+      await rejectStudyJoinRequest(accessToken.trim(), studyId, memberId)
+      await Promise.all([loadNotifications(), loadStudyJoinRequests(studyId)])
+      showToast('success', '참여 신청을 거절했습니다.')
+    } catch (error) {
+      reportRequestError(error, '참여 신청을 거절하지 못했습니다.')
+    }
+  }
+
+  async function cancelJoinRequest(studyId: number) {
+    if (!canConnect) return
+    try {
+      await cancelStudyJoinRequest(accessToken.trim(), studyId)
+      await Promise.all([loadStudies(), loadMyStudies(), loadNotifications()])
+      if (selectedStudy?.id === studyId) {
+        await selectStudy(studyId)
+      }
+      showToast('success', '참여 신청을 취소했습니다.')
+    } catch (error) {
+      reportRequestError(error, '참여 신청을 취소하지 못했습니다.')
+    }
+  }
+
+  async function openNotification(item: NotificationItem) {
+    setShowNotificationMenu(false)
+    setShowProfileMenu(false)
+    void markNotificationReadLocally(item)
+
+    if (item.targetType === 'CHAT_ROOM') {
+      setActiveView('chat')
+      await loadChatRooms()
+      await loadChatMessages(item.targetId)
+      return
+    }
+
+    if (item.targetType !== 'STUDY') {
+      return
+    }
+
+    const notificationType = item.type.toUpperCase()
+    if (notificationType === 'STUDY_JOIN_REQUESTED') {
+      setActiveView('studies')
+      setStudyListScope('active')
+      await selectStudy(item.targetId)
+      return
+    }
+
+    if (notificationType === 'STUDY_JOIN_APPROVED') {
+      const history = await loadMyStudies()
+      setActiveView('studies')
+      setStudyListScope('active')
+      const activeStudy = history?.activeStudies.find((study) => study.id === item.targetId)
+      if (activeStudy) {
+        await openStudyHistoryDetail(activeStudy)
+        return
+      }
+      await selectStudy(item.targetId)
+      return
+    }
+
+    if (notificationType === 'STUDY_ENDED' || notificationType === 'STUDY_DELETED') {
+      const history = await loadMyStudies()
+      setActiveView('mypage')
+      const pastStudy = history?.pastStudies.find((study) => study.id === item.targetId)
+      if (pastStudy) {
+        await openStudyHistoryDetail(pastStudy)
+      }
+      return
+    }
+
+    setActiveView('studies')
+    setStudyListScope('recruiting')
+    await loadStudies()
+    await selectStudy(item.targetId)
+  }
+
+  async function markNotificationReadLocally(item: NotificationItem) {
+    if (!item.id || item.read) return
+    try {
+      const updated = await markNotificationRead(accessToken.trim(), item.id)
+      setNotifications((current) =>
+        current.map((notification) =>
+          notification.id === updated.id ? updated : notification,
+        ),
+      )
+    } catch {
+      setNotifications((current) =>
+        current.map((notification) =>
+          notification.id === item.id
+            ? { ...notification, read: true, readAt: new Date().toISOString() }
+            : notification,
+        ),
+      )
+    }
+  }
+
+  async function markAllNotificationsRead() {
+    const unreadItems = notifications.filter((item) => item.id && !item.read)
+    if (unreadItems.length === 0) return
+
+    await Promise.all(unreadItems.map((item) => markNotificationReadLocally(item)))
+  }
+
+  async function removeNotification(item: NotificationItem) {
+    if (!item.id) return
+    try {
+      await deleteNotification(accessToken.trim(), item.id)
+      setNotifications((current) =>
+        current.filter((notification) => notification.id !== item.id),
+      )
+    } catch (error) {
+      reportRequestError(error, '알림을 삭제하지 못했습니다.')
+    }
+  }
+
   function isStudyJoined(studyId: number) {
     return (
       studies.find((study) => study.id === studyId)?.joinedByRequester === true ||
+      myStudyHistory.activeStudies.find((study) => study.id === studyId)?.joinedByRequester === true ||
+      myStudyHistory.pastStudies.find((study) => study.id === studyId)?.joinedByRequester === true ||
       (selectedStudy?.id === studyId && selectedStudy.joinedByRequester === true)
     )
+  }
+
+  function isStudyJoinRequested(study: StudyItem) {
+    return study.joinRequestedByRequester === true
   }
 
   async function loadPosts() {
@@ -823,6 +1107,14 @@ function App() {
       } catch {
         setChatMembers([])
       }
+      const targetRoom = chatRooms.find((room) => room.id === roomIdValue)
+      const targetStudy = targetRoom?.studyId == null
+        ? null
+        : knownStudies.find((study) => study.id === targetRoom.studyId) ?? null
+      if (targetStudy && (isStudyEnded(targetStudy.status) || isStudyDeleted(targetStudy.status))) {
+        appendLog(`채팅 메시지 ${messages.length}개 동기화`)
+        return
+      }
       connectRealtime(roomIdValue)
       appendLog(`채팅 메시지 ${messages.length}개 동기화`)
     } catch (error) {
@@ -904,9 +1196,12 @@ function App() {
   }
 
   function submitMessage() {
-    if (isActiveRoomClosed) {
-      appendLog('마감된 스터디 채팅방에는 메시지를 보낼 수 없습니다.')
-      showToast('info', '마감된 스터디 채팅방입니다.', '새 메시지를 보낼 수 없습니다.')
+    if (!roomId) {
+      showToast('info', '채팅방을 선택해 주세요.')
+      return
+    }
+    if (isActiveRoomReadOnly) {
+      showToast('info', '종료된 스터디 채팅방입니다.')
       return
     }
     sendChatMessage(clientRef.current, roomId, message)
@@ -1195,6 +1490,7 @@ function App() {
         {activeView === 'posts' && renderPosts()}
         {activeView === 'chat' && renderChat()}
         {activeView === 'mypage' && renderMyPage()}
+        {renderStudyDetailModal()}
         {showAccountManagementModal && renderAccountManagementModal()}
       </main>
       {toast && renderToast()}
@@ -1274,105 +1570,29 @@ function App() {
         )}
 
         {studyBoardMode === 'list' && (
-          <div className="study-card-grid">
-            {studies.length === 0 ? (
-              <EmptyState icon={BookOpen} text="아직 등록된 스터디가 없습니다." />
-            ) : (
-              studies.map((study) => {
-                const detail = studyDetail(study)
-                const isRecruiting = isStudyRecruiting(study.status)
-                const isJoined = isStudyJoined(study.id)
-                const isSelected = selectedStudy?.id === study.id
+          <>
+            <div className="study-scope-tabs" aria-label="스터디 목록">
+              {studyListScopes.map((scope) => (
+                <button
+                  className={studyListScope === scope.id ? 'active' : ''}
+                  key={scope.id}
+                  type="button"
+                  onClick={() => setStudyListScope(scope.id)}
+                >
+                  {scope.label}
+                  <span>{studyScopeCount(scope.id)}</span>
+                </button>
+              ))}
+            </div>
 
-                return (
-                  <article className="study-card" key={study.id}>
-                    <button
-                      className="study-card-main"
-                      type="button"
-                      onClick={() => selectStudy(study.id)}
-                    >
-                      <div className="study-card-icon">
-                        {study.title.trim().slice(0, 1).toUpperCase() || 'S'}
-                      </div>
-                      <div>
-                        <div className="study-title-row">
-                          <strong>{study.title}</strong>
-                          <span
-                            className={`study-status-label ${isRecruiting ? '' : 'closed'}`}
-                          >
-                            {studyStatusLabel(study.status)}
-                          </span>
-                        </div>
-                        <span className="study-owner-label">{studyOwnerLabel(study)}</span>
-                      </div>
-                    </button>
-                    <dl className="study-summary">
-                      <div>
-                        <dt>진행</dt>
-                        <dd>{detail.progressMethod}</dd>
-                      </div>
-                      <div>
-                        <dt>정원</dt>
-                        <dd>{detail.capacity}</dd>
-                      </div>
-                    </dl>
-                    <div className="study-card-actions">
-                      {!isJoined && isRecruiting && (
-                        <button
-                          className="primary"
-                          type="button"
-                          onClick={() => mutateStudy(study.id, 'join')}
-                          disabled={!canConnect}
-                        >
-                          <CheckCircle2 size={16} />
-                          참여
-                        </button>
-                      )}
-                      {isJoined && (
-                        <>
-                          <button
-                            className="primary"
-                            type="button"
-                            onClick={() => openStudyChatRoom(study.id)}
-                            disabled={!canConnect}
-                          >
-                            <MessageSquareText size={16} />
-                            채팅
-                          </button>
-                          {!study.ownedByRequester && (
-                            <button
-                              type="button"
-                              onClick={() => mutateStudy(study.id, 'leave')}
-                              disabled={!canConnect}
-                            >
-                              탈퇴
-                            </button>
-                          )}
-                        </>
-                      )}
-                      {study.ownedByRequester && isRecruiting && (
-                        <>
-                          <button type="button" onClick={() => openEditStudyEditor(study)}>
-                            수정
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => mutateStudy(study.id, 'close')}
-                            disabled={!canConnect}
-                          >
-                            마감하기
-                          </button>
-                        </>
-                      )}
-                      <button type="button" onClick={() => toggleStudyDetail(study.id)}>
-                        {isSelected ? '닫기' : '상세'}
-                      </button>
-                    </div>
-                  </article>
-                )
-              })
-            )}
-          </div>
+            <div className="study-card-grid">
+              {visibleStudyItems.length === 0 ? (
+                <EmptyState icon={BookOpen} text={studyScopeEmptyText(studyListScope)} />
+              ) : (
+                visibleStudyItems.map((study) => renderStudyCard(study))
+              )}
+            </div>
+          </>
         )}
 
         {studyBoardMode === 'write' && (
@@ -1387,67 +1607,115 @@ function App() {
               <label>
                 <span>제목</span>
                 <input
+                  aria-invalid={Boolean(studyFormErrors.title)}
+                  aria-describedby={studyFormErrors.title ? 'study-title-error' : undefined}
+                  maxLength={studyFormFieldMaxLengths.title}
                   value={studyForm.title}
                   onChange={(event) =>
-                    setStudyForm((current) => ({ ...current, title: event.target.value }))
+                    updateStudyFormField('title', event.target.value)
                   }
                   placeholder="예: 매일 알고리즘 1문제"
                 />
+                {studyFormErrors.title && (
+                  <p id="study-title-error" className="form-error">{studyFormErrors.title}</p>
+                )}
               </label>
               <label>
                 <span>진행 방식</span>
                 <textarea
+                  aria-invalid={Boolean(studyFormErrors.progressMethod)}
+                  aria-describedby={
+                    studyFormErrors.progressMethod ? 'study-progress-method-error' : undefined
+                  }
+                  maxLength={studyFormFieldMaxLengths.progressMethod}
                   value={studyForm.progressMethod}
                   onChange={(event) =>
-                    setStudyForm((current) => ({ ...current, progressMethod: event.target.value }))
+                    updateStudyFormField('progressMethod', event.target.value)
                   }
                   placeholder="예: 매주 화/목 21시에 온라인으로 진행"
                 />
+                {studyFormErrors.progressMethod && (
+                  <p id="study-progress-method-error" className="form-error">
+                    {studyFormErrors.progressMethod}
+                  </p>
+                )}
               </label>
               <label>
                 <span>모집 대상</span>
                 <textarea
+                  aria-invalid={Boolean(studyFormErrors.targetAudience)}
+                  aria-describedby={
+                    studyFormErrors.targetAudience ? 'study-target-audience-error' : undefined
+                  }
+                  maxLength={studyFormFieldMaxLengths.targetAudience}
                   value={studyForm.targetAudience}
                   onChange={(event) =>
-                    setStudyForm((current) => ({ ...current, targetAudience: event.target.value }))
+                    updateStudyFormField('targetAudience', event.target.value)
                   }
                   placeholder="예: Java 기초를 끝내고 알고리즘을 시작하려는 사람"
                 />
+                {studyFormErrors.targetAudience && (
+                  <p id="study-target-audience-error" className="form-error">
+                    {studyFormErrors.targetAudience}
+                  </p>
+                )}
               </label>
               <div className="study-editor-grid">
                 <label>
                   <span>정원</span>
                   <input
+                    aria-invalid={Boolean(studyFormErrors.capacity)}
+                    aria-describedby={studyFormErrors.capacity ? 'study-capacity-error' : undefined}
                     inputMode="numeric"
                     min={1}
+                    step={1}
                     type="number"
                     value={studyForm.capacity}
                     onChange={(event) =>
-                      setStudyForm((current) => ({ ...current, capacity: event.target.value }))
+                      updateStudyFormField('capacity', event.target.value)
                     }
                     placeholder="예: 6"
                   />
+                  {studyFormErrors.capacity && (
+                    <p id="study-capacity-error" className="form-error">
+                      {studyFormErrors.capacity}
+                    </p>
+                  )}
                 </label>
                 <label>
                   <span>일정</span>
                   <input
+                    aria-invalid={Boolean(studyFormErrors.schedule)}
+                    aria-describedby={studyFormErrors.schedule ? 'study-schedule-error' : undefined}
+                    maxLength={studyFormFieldMaxLengths.schedule}
                     value={studyForm.schedule}
                     onChange={(event) =>
-                      setStudyForm((current) => ({ ...current, schedule: event.target.value }))
+                      updateStudyFormField('schedule', event.target.value)
                     }
                     placeholder="예: 매주 화요일 21:00"
                   />
+                  {studyFormErrors.schedule && (
+                    <p id="study-schedule-error" className="form-error">
+                      {studyFormErrors.schedule}
+                    </p>
+                  )}
                 </label>
               </div>
               <label>
                 <span>규칙</span>
                 <textarea
+                  aria-invalid={Boolean(studyFormErrors.rules)}
+                  aria-describedby={studyFormErrors.rules ? 'study-rules-error' : undefined}
+                  maxLength={studyFormFieldMaxLengths.rules}
                   value={studyForm.rules}
                   onChange={(event) =>
-                    setStudyForm((current) => ({ ...current, rules: event.target.value }))
+                    updateStudyFormField('rules', event.target.value)
                   }
                   placeholder="예: 불참 시 전날 공유, 풀이 인증 필수"
                 />
+                {studyFormErrors.rules && (
+                  <p id="study-rules-error" className="form-error">{studyFormErrors.rules}</p>
+                )}
               </label>
               <div className="row-actions editor-actions">
                 <button
@@ -1463,14 +1731,7 @@ function App() {
                   className="primary"
                   type="button"
                   onClick={submitStudy}
-                  disabled={
-                    !studyForm.title.trim() ||
-                    !studyForm.progressMethod.trim() ||
-                    !studyForm.targetAudience.trim() ||
-                    !studyForm.rules.trim() ||
-                    !studyForm.capacity.trim() ||
-                    !studyForm.schedule.trim()
-                  }
+                  disabled={!canConnect}
                 >
                   <Plus size={16} />
                   {editingStudyId == null ? '생성' : '저장'}
@@ -1480,23 +1741,192 @@ function App() {
           </article>
         )}
 
-        {studyBoardMode === 'list' && selectedStudy && (
-          <aside className="study-detail-panel">
-            <div className="section-heading compact">
-              <div>
-                <span className="eyebrow">Selected study</span>
-                <h2>{selectedStudy.title}</h2>
-              </div>
-              <button
-                className="icon-button"
-                type="button"
-                onClick={() => setSelectedStudy(null)}
-                aria-label="스터디 상세 닫기"
-                title="닫기"
-              >
-                <X size={16} />
-              </button>
+        {showDevTools && renderActivityPanel()}
+      </section>
+    )
+  }
+
+  function studyScopeCount(scope: StudyListScope) {
+    if (scope === 'active') return myStudyHistory.activeStudies.length
+    return recruitingStudies.length
+  }
+
+  function studyScopeEmptyText(scope: StudyListScope) {
+    if (scope === 'active') return '참여 중인 스터디가 없습니다.'
+    return '아직 모집 중인 스터디가 없습니다.'
+  }
+
+  function renderStudyCard(study: StudyItem) {
+    const detail = studyDetail(study)
+    const isRecruiting = isStudyRecruiting(study.status)
+    const isJoined = isStudyJoined(study.id)
+    const isRequested = isStudyJoinRequested(study)
+    const isEnded = isStudyEnded(study.status)
+
+    return (
+      <article className="study-card" key={study.id}>
+        <button
+          className="study-card-main"
+          type="button"
+          onClick={() => selectStudy(study.id)}
+        >
+          <div className="study-card-icon">
+            {study.title.trim().slice(0, 1).toUpperCase() || 'S'}
+          </div>
+          <div>
+            <div className="study-title-row">
+              <strong>{study.title}</strong>
+              <span className={`study-status-label ${studyStatusClassName(study.status)}`}>
+                {studyStatusLabel(study.status)}
+              </span>
             </div>
+            <span className="study-owner-label">{studyOwnerLabel(study)}</span>
+          </div>
+        </button>
+        <dl className="study-summary">
+          <div>
+            <dt>진행</dt>
+            <dd>{detail.progressMethod}</dd>
+          </div>
+          <div>
+            <dt>정원</dt>
+            <dd>{detail.capacity}</dd>
+          </div>
+        </dl>
+        <div className="study-card-actions">
+          {!isJoined && isRecruiting && !isRequested && (
+            <button
+              className="primary"
+              type="button"
+              onClick={() => mutateStudy(study.id, 'join')}
+              disabled={!canConnect}
+            >
+              <CheckCircle2 size={16} />
+              참여 신청
+            </button>
+          )}
+          {!isJoined && isRecruiting && isRequested && (
+            <>
+              <button type="button" disabled>
+                신청됨
+              </button>
+              <button
+                type="button"
+                onClick={() => cancelJoinRequest(study.id)}
+                disabled={!canConnect}
+              >
+                신청 취소
+              </button>
+            </>
+          )}
+          {!isJoined && !study.ownedByRequester && !isEnded && (
+            <button
+              type="button"
+              onClick={() => openPrivateChatRoom(study.ownerMemberId)}
+              disabled={!canConnect}
+            >
+              <MessageSquareText size={16} />
+              스터디장 채팅
+            </button>
+          )}
+          {isJoined && !isEnded && (
+            <button
+              className="primary"
+              type="button"
+              onClick={() => openStudyChatRoom(study.id)}
+              disabled={!canConnect}
+            >
+              <MessageSquareText size={16} />
+              채팅
+            </button>
+          )}
+          {study.ownedByRequester && !isEnded && (
+            <>
+              <button type="button" onClick={() => openEditStudyEditor(study)}>
+                수정
+              </button>
+              {isRecruiting && (
+                <button
+                  type="button"
+                  onClick={() => mutateStudy(study.id, 'close')}
+                  disabled={!canConnect}
+                >
+                  마감하기
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => mutateStudy(study.id, 'end')}
+                disabled={!canConnect}
+              >
+                종료
+              </button>
+            </>
+          )}
+          {study.ownedByRequester && isEnded && !isStudyDeleted(study.status) && (
+            <button
+              className="danger-text-button"
+              type="button"
+              onClick={() => mutateStudy(study.id, 'delete')}
+              disabled={!canConnect}
+            >
+              삭제
+            </button>
+          )}
+          {isJoined && !study.ownedByRequester && !isEnded && (
+            <button
+              type="button"
+              onClick={() => mutateStudy(study.id, 'leave')}
+              disabled={!canConnect}
+            >
+              탈퇴
+            </button>
+          )}
+          <button type="button" onClick={() => toggleStudyDetail(study.id)}>
+            상세
+          </button>
+        </div>
+      </article>
+    )
+  }
+
+  function renderStudyDetailModal() {
+    if (!selectedStudy || studyBoardMode !== 'list') return null
+
+    const isJoined = isStudyJoined(selectedStudy.id)
+    const isRecruiting = isStudyRecruiting(selectedStudy.status)
+    const isRequested = isStudyJoinRequested(selectedStudy)
+    const isEnded = isStudyEnded(selectedStudy.status)
+
+    return (
+      <div
+        className="modal-backdrop"
+        role="presentation"
+        onMouseDown={() => setSelectedStudy(null)}
+      >
+        <section
+          className="account-modal study-detail-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="study-detail-title"
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <div className="account-modal-header">
+            <div>
+              <span className="eyebrow">{studyStatusLabel(selectedStudy.status)}</span>
+              <h2 id="study-detail-title">{selectedStudy.title}</h2>
+            </div>
+            <button
+              className="icon-button"
+              type="button"
+              onClick={() => setSelectedStudy(null)}
+              aria-label="스터디 상세 닫기"
+              title="닫기"
+            >
+              <X size={16} />
+            </button>
+          </div>
+          <div className="study-detail-modal-body">
             <dl className="study-detail-list">
               {renderStudyDetail('진행 방식', studyDetail(selectedStudy).progressMethod)}
               {renderStudyDetail('모집 대상', studyDetail(selectedStudy).targetAudience)}
@@ -1507,23 +1937,90 @@ function App() {
             <span className="row-meta">
               {studyOwnerLabel(selectedStudy)} · {formatTime(selectedStudy.createdAt)}
             </span>
-            {isStudyJoined(selectedStudy.id) && (
-              <div className="row-actions detail-actions">
-                {selectedStudy.ownedByRequester && (
-                  <button type="button" onClick={() => openEditStudyEditor(selectedStudy)}>
-                    수정
-                  </button>
-                )}
+            <div className="row-actions detail-actions">
+              {!isJoined && isRecruiting && !isRequested && (
                 <button
                   className="primary"
                   type="button"
-                  onClick={() => openStudyChatRoom(selectedStudy.id)}
+                  onClick={() => mutateStudy(selectedStudy.id, 'join')}
+                  disabled={!canConnect}
+                >
+                  <CheckCircle2 size={16} />
+                  참여 신청
+                </button>
+              )}
+              {!isJoined && isRecruiting && isRequested && (
+                <>
+                  <button type="button" disabled>
+                    신청됨
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => cancelJoinRequest(selectedStudy.id)}
+                    disabled={!canConnect}
+                  >
+                    신청 취소
+                  </button>
+                </>
+              )}
+              {!isJoined && !selectedStudy.ownedByRequester && !isEnded && (
+                <button
+                  type="button"
+                  onClick={() => openPrivateChatRoom(selectedStudy.ownerMemberId)}
                   disabled={!canConnect}
                 >
                   <MessageSquareText size={16} />
-                  채팅방
+                  스터디장 채팅
                 </button>
-                {!selectedStudy.ownedByRequester && (
+              )}
+            </div>
+            {(isJoined || selectedStudy.ownedByRequester) && (
+              <div className="row-actions detail-actions">
+                {isJoined && !isEnded && (
+                  <button
+                    className="primary"
+                    type="button"
+                    onClick={() => openStudyChatRoom(selectedStudy.id)}
+                    disabled={!canConnect}
+                  >
+                    <MessageSquareText size={16} />
+                    채팅방
+                  </button>
+                )}
+                {selectedStudy.ownedByRequester && !isEnded && (
+                  <>
+                    <button type="button" onClick={() => openEditStudyEditor(selectedStudy)}>
+                      수정
+                    </button>
+                    {isRecruiting && (
+                      <button
+                        type="button"
+                        onClick={() => mutateStudy(selectedStudy.id, 'close')}
+                        disabled={!canConnect}
+                      >
+                        마감하기
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => mutateStudy(selectedStudy.id, 'end')}
+                      disabled={!canConnect}
+                    >
+                      종료
+                    </button>
+                  </>
+                )}
+                {selectedStudy.ownedByRequester && isEnded && !isStudyDeleted(selectedStudy.status) && (
+                  <button
+                    className="danger-text-button"
+                    type="button"
+                    onClick={() => mutateStudy(selectedStudy.id, 'delete')}
+                    disabled={!canConnect}
+                  >
+                    삭제
+                  </button>
+                )}
+                {isJoined && !selectedStudy.ownedByRequester && !isEnded && (
                   <button
                     type="button"
                     onClick={() => mutateStudy(selectedStudy.id, 'leave')}
@@ -1534,11 +2031,55 @@ function App() {
                 )}
               </div>
             )}
-          </aside>
-        )}
-
-        {showDevTools && renderActivityPanel()}
-      </section>
+            {selectedStudy.ownedByRequester && !isEnded && !isStudyDeleted(selectedStudy.status) && (
+              <section className="join-request-panel" aria-label="참여 신청">
+                <div className="section-heading compact">
+                  <h3>참여 신청</h3>
+                  <strong className="history-count">{studyJoinRequests.length}</strong>
+                </div>
+                {studyJoinRequests.length === 0 ? (
+                  <p className="muted">대기 중인 신청이 없습니다.</p>
+                ) : (
+                  <div className="history-list">
+                    {studyJoinRequests.map((request) => (
+                      <article className="history-row" key={request.memberId}>
+                        <button
+                          className="history-row-main"
+                          type="button"
+                          onClick={() => openPrivateChatRoom(request.memberId)}
+                        >
+                          <div>
+                            <strong>{request.nickname ?? `멤버 ${request.memberId}`}</strong>
+                            <span>{formatTime(request.requestedAt)}</span>
+                          </div>
+                        </button>
+                        <div className="history-row-actions">
+                          <button type="button" onClick={() => openPrivateChatRoom(request.memberId)}>
+                            1:1 채팅
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => rejectJoinRequest(selectedStudy.id, request.memberId)}
+                          >
+                            거절
+                          </button>
+                          <button
+                            className="primary"
+                            type="button"
+                            onClick={() => approveJoinRequest(selectedStudy.id, request.memberId)}
+                          >
+                            승인
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
+          </div>
+        </section>
+      </div>
     )
   }
 
@@ -1715,23 +2256,21 @@ function App() {
       <div className="history-list">
         {items.map((study) => {
           const detail = studyDetail(study)
-          const isRecruiting = isStudyRecruiting(study.status)
-          const isJoined = study.joinedByRequester === true
+    const isRecruiting = isStudyRecruiting(study.status)
+    const isJoined = study.joinedByRequester === true
+    const isHistorical = variant === 'past'
 
           return (
             <article className="history-row" key={`${variant}-${study.id}`}>
               <button
                 className="history-row-main"
                 type="button"
-                onClick={() => {
-                  setActiveView('studies')
-                  void selectStudy(study.id)
-                }}
+                onClick={() => openStudyHistoryDetail(study)}
               >
                 <div>
                   <div className="study-title-row">
                     <strong>{study.title}</strong>
-                    <span className={`study-status-label ${isRecruiting ? '' : 'closed'}`}>
+                    <span className={`study-status-label ${studyStatusClassName(study.status)}`}>
                       {studyStatusLabel(study.status)}
                     </span>
                   </div>
@@ -1739,7 +2278,7 @@ function App() {
                 </div>
               </button>
               <div className="history-row-actions">
-                {isJoined && (
+                {isJoined && !isHistorical && (
                   <button
                     className="primary"
                     type="button"
@@ -1750,12 +2289,26 @@ function App() {
                     채팅
                   </button>
                 )}
-                {variant === 'active' && study.ownedByRequester && isRecruiting && (
+                {study.ownedByRequester && isRecruiting && !isHistorical && (
                   <button type="button" onClick={() => mutateStudy(study.id, 'close')}>
                     마감하기
                   </button>
                 )}
-                {isJoined && !study.ownedByRequester && (
+                {study.ownedByRequester && !isHistorical && !isStudyEnded(study.status) && (
+                  <button type="button" onClick={() => mutateStudy(study.id, 'end')}>
+                    종료
+                  </button>
+                )}
+                {study.ownedByRequester && isHistorical && isStudyEnded(study.status) && !isStudyDeleted(study.status) && (
+                  <button
+                    className="danger-text-button"
+                    type="button"
+                    onClick={() => mutateStudy(study.id, 'delete')}
+                  >
+                    삭제
+                  </button>
+                )}
+                {isJoined && !study.ownedByRequester && !isHistorical && !isStudyEnded(study.status) && (
                   <button type="button" onClick={() => mutateStudy(study.id, 'leave')}>
                     탈퇴
                   </button>
@@ -2060,14 +2613,15 @@ function App() {
                       className="room-list-item"
                       type="button"
                       onClick={() => loadChatMessages(room.id)}
-                    >
-                      <strong>{chatRoomTitle(room, studies)}</strong>
-                    </button>
+	                    >
+	                      <strong>{chatRoomTitle(room, knownStudies)}</strong>
+	                      <span>{chatRoomMeta(room, knownStudies)}</span>
+	                    </button>
                     <button
                       className="room-delete-button"
                       type="button"
                       onClick={() => removeChatRoom(room)}
-                      aria-label={`${chatRoomTitle(room, studies)} 삭제`}
+                      aria-label={`${chatRoomTitle(room, knownStudies)} 삭제`}
                       title="삭제"
                     >
                       <Trash2 size={15} />
@@ -2122,7 +2676,14 @@ function App() {
 
             <div className="chat-panel">
               {chatMessages.length === 0 ? (
-                <EmptyState icon={MessageSquareText} text="채팅방을 선택하세요." />
+                <EmptyState
+                  icon={MessageSquareText}
+                  text={
+                    roomId
+                      ? (isActiveRoomReadOnly ? '종료된 스터디 채팅방입니다.' : '아직 메시지가 없습니다.')
+                      : '채팅방을 선택하세요.'
+                  }
+                />
               ) : (
                 chatMessages.map((item, index) => (
                   <article className="message-row" key={`${item.id ?? 'local'}-${index}`}>
@@ -2153,10 +2714,10 @@ function App() {
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') submitMessage()
                 }}
-                placeholder={isActiveRoomClosed ? '마감된 스터디 채팅방입니다' : '메시지를 입력하세요'}
-                disabled={isActiveRoomClosed}
+                placeholder={isActiveRoomReadOnly ? '종료된 스터디입니다' : (roomId ? '메시지를 입력하세요' : '채팅방을 먼저 선택하세요')}
+                disabled={!roomId || isActiveRoomReadOnly}
               />
-              <button type="button" onClick={submitMessage} disabled={isActiveRoomClosed}>
+              <button type="button" onClick={submitMessage} disabled={!roomId || isActiveRoomReadOnly}>
                 <Send size={18} />
               </button>
             </div>
@@ -2168,27 +2729,62 @@ function App() {
   }
 
   function renderNotificationPopup() {
+    const unreadCount = notifications.filter((item) => !item.read).length
+
     return (
       <div className="notification-popover" role="dialog" aria-label="알림">
         <div className="popover-header">
           <div>
             <h2>알림</h2>
-            <span>{notifications.length}개</span>
+            <span>{unreadCount > 0 ? `새 알림 ${unreadCount}개` : `${notifications.length}개`}</span>
           </div>
+          <button
+            className="notification-read-all-button"
+            type="button"
+            onClick={() => void markAllNotificationsRead()}
+            disabled={unreadCount === 0}
+          >
+            모두 읽음
+          </button>
         </div>
         <div className="notification-list">
           {notifications.length === 0 ? (
             <p className="muted">아직 수신한 알림이 없습니다.</p>
           ) : (
             notifications.map((item, index) => (
-              <article className="notice-row" key={`${item.id ?? 'notice'}-${index}`}>
-                <Bell size={17} />
-                <div>
-                  <strong>{item.message}</strong>
-                  <span>
-                    {item.type} · target #{item.targetId}
-                  </span>
-                </div>
+              <article
+                className={item.read ? 'notice-row read' : 'notice-row'}
+                key={`${item.id ?? 'notice'}-${index}`}
+              >
+                <button
+                  className="notice-main"
+                  type="button"
+                  onClick={() => void openNotification(item)}
+                >
+                  <Bell size={17} />
+                  <div>
+                    <strong>{item.message}</strong>
+                    <span>{notificationLabel(item)}</span>
+                  </div>
+                </button>
+                {!item.read && (
+                  <button
+                    className="notice-read-button"
+                    type="button"
+                    onClick={() => void markNotificationReadLocally(item)}
+                  >
+                    읽음
+                  </button>
+                )}
+                <button
+                  className="notice-delete-button"
+                  type="button"
+                  onClick={() => void removeNotification(item)}
+                  aria-label="알림 삭제"
+                  title="삭제"
+                >
+                  <X size={14} />
+                </button>
               </article>
             ))
           )}
@@ -2280,26 +2876,140 @@ function formatTime(value?: string | null) {
   }).format(new Date(value))
 }
 
-function actionLabel(action: 'join' | 'leave' | 'close') {
-  if (action === 'join') return '참여'
+function actionLabel(action: StudyAction) {
+  if (action === 'join') return '참여 신청'
   if (action === 'close') return '마감'
+  if (action === 'end') return '종료'
+  if (action === 'delete') return '삭제'
   return '탈퇴'
 }
 
-function studyActionSuccessMessage(action: 'join' | 'leave' | 'close') {
-  if (action === 'join') return '스터디에 참여했습니다.'
+function studyActionSuccessMessage(action: StudyAction) {
+  if (action === 'join') return '스터디 참여를 신청했습니다.'
   if (action === 'close') return '스터디 모집을 마감했습니다.'
+  if (action === 'end') return '스터디를 종료했습니다.'
+  if (action === 'delete') return '스터디를 삭제했습니다.'
   return '스터디에서 탈퇴했습니다.'
 }
 
-function studyActionFailureMessage(action: 'join' | 'leave' | 'close') {
-  if (action === 'join') return '스터디에 참여하지 못했습니다.'
+function studyActionFailureMessage(action: StudyAction) {
+  if (action === 'join') return '스터디 참여를 신청하지 못했습니다.'
   if (action === 'close') return '스터디 모집을 마감하지 못했습니다.'
+  if (action === 'end') return '스터디를 종료하지 못했습니다.'
+  if (action === 'delete') return '스터디를 삭제하지 못했습니다.'
   return '스터디에서 탈퇴하지 못했습니다.'
 }
 
 function isValidNickname(nickname: string) {
   return /^[가-힣A-Za-z0-9_]{2,20}$/.test(nickname)
+}
+
+function validateStudyForm(form: StudyForm) {
+  const errors: StudyFormErrors = {}
+
+  for (const field of studyFormFieldOrder) {
+    if (!form[field].trim()) {
+      errors[field] = studyFormRequiredMessage(field)
+    }
+  }
+
+  const capacity = Number(form.capacity)
+  if (form.capacity.trim() && (!Number.isInteger(capacity) || capacity < 1)) {
+    errors.capacity = studyFormCapacityMessage()
+  }
+
+  for (const [field, maxLength] of Object.entries(studyFormFieldMaxLengths)) {
+    const studyField = field as StudyFormField
+    if (maxLength == null) continue
+    if (form[studyField].trim().length > maxLength) {
+      errors[studyField] = studyFormMaxLengthMessage(studyField, maxLength)
+    }
+  }
+
+  return {
+    errors,
+    firstMessage: firstStudyFormErrorMessage(errors),
+  }
+}
+
+function firstStudyFormErrorMessage(errors: StudyFormErrors) {
+  for (const field of studyFormFieldOrder) {
+    const message = errors[field]
+    if (message) return studyFormToastMessage(field, message)
+  }
+
+  return '입력값을 다시 확인해 주세요.'
+}
+
+function studyFormToastMessage(field: StudyFormField, message: string) {
+  return `${studyFormFieldLabels[field]}: ${message}`
+}
+
+function studyFormErrorsFromApiError(error: unknown): StudyFormErrors {
+  if (!(error instanceof ApiClientError) || !Array.isArray(error.detail)) {
+    return {}
+  }
+
+  return error.detail.reduce<StudyFormErrors>((errors, item) => {
+    if (!isApiFieldError(item)) return errors
+    if (item.field === 'hasRecruitmentInfo') {
+      for (const field of studyFormFieldOrder) {
+        if (field !== 'title') {
+          errors[field] = studyFormRequiredMessage(field)
+        }
+      }
+      return errors
+    }
+
+    const field = normalizeStudyFormField(item.field)
+    if (!field) return errors
+
+    errors[field] = friendlyStudyFieldError(field, item.message)
+    return errors
+  }, {})
+}
+
+function isApiFieldError(value: unknown): value is { field: string; message?: string } {
+  return typeof value === 'object'
+    && value != null
+    && 'field' in value
+    && typeof (value as { field?: unknown }).field === 'string'
+}
+
+function normalizeStudyFormField(field: string): StudyFormField | null {
+  return studyFormFieldOrder.includes(field as StudyFormField) ? field as StudyFormField : null
+}
+
+function friendlyStudyFieldError(field: StudyFormField, message?: string) {
+  if (!message) return `입력값 확인 · 예: ${studyFormFieldExamples[field]}`
+  if (message.includes('공백') || message.includes('blank') || message.includes('참')) {
+    return studyFormRequiredMessage(field)
+  }
+  if (message.includes('크기') || message.includes('size') || message.includes('length')) {
+    const maxLength = studyFormFieldMaxLengths[field]
+    return maxLength ? studyFormMaxLengthMessage(field, maxLength) : `길이 확인 · 예: ${studyFormFieldExamples[field]}`
+  }
+  if (field === 'capacity' && (message.includes('1') || message.includes('최솟값') || message.includes('greater'))) {
+    return studyFormCapacityMessage()
+  }
+  return message
+}
+
+function studyFormRequiredMessage(field: StudyFormField) {
+  return `필수 입력 · 예: ${studyFormFieldExamples[field]}`
+}
+
+function studyFormMaxLengthMessage(field: StudyFormField, maxLength: number) {
+  return `${maxLength}자 이하 · 예: ${studyFormFieldExamples[field]}`
+}
+
+function studyFormCapacityMessage() {
+  return `1 이상의 숫자 · 예: ${studyFormFieldExamples.capacity}`
+}
+
+function isInvalidInputError(error: unknown) {
+  return error instanceof ApiClientError
+    && (error.code === 'GLOBAL-400' || error.message.includes('입력값'))
 }
 
 function isSignupRequired(profile: AuthProfile) {
@@ -2321,8 +3031,26 @@ function isStudyRecruiting(status: string) {
   return recruitingStudyStatuses.has(status.toUpperCase())
 }
 
+function isStudyEnded(status: string) {
+  return status.toUpperCase() === 'ENDED'
+}
+
+function isStudyDeleted(status: string) {
+  return status.toUpperCase() === 'DELETED'
+}
+
 function studyStatusLabel(status: string) {
-  return isStudyRecruiting(status) ? '모집중' : '마감'
+  const normalized = status.toUpperCase()
+  if (normalized === 'ENDED') return '종료'
+  if (normalized === 'DELETED') return '삭제됨'
+  return isStudyRecruiting(status) ? '모집중' : '모집마감'
+}
+
+function studyStatusClassName(status: string) {
+  const normalized = status.toUpperCase()
+  if (normalized === 'ENDED') return 'ended'
+  if (normalized === 'DELETED') return 'deleted'
+  return isStudyRecruiting(status) ? '' : 'closed'
 }
 
 function studyOwnerLabel(study: StudyItem) {
@@ -2395,6 +3123,25 @@ function chatRoomTitle(room: ChatRoom, studies: StudyItem[]) {
   }
 
   return '1:1 채팅'
+}
+
+function chatRoomMeta(room: ChatRoom, studies: StudyItem[]) {
+  if (room.type === 'PRIVATE') return '1:1'
+  if (room.type === 'STUDY' && room.studyId) {
+    const study = studies.find((item) => item.id === room.studyId)
+    if (study && (isStudyEnded(study.status) || isStudyDeleted(study.status))) {
+      return '스터디 · 종료'
+    }
+    return '스터디'
+  }
+  return '채팅'
+}
+
+function notificationLabel(item: NotificationItem) {
+  if (item.targetType === 'STUDY') return '스터디'
+  if (item.targetType === 'COMMENT') return '커뮤니티'
+  if (item.targetType === 'CHAT_ROOM') return '채팅'
+  return '알림'
 }
 
 function avatarDataUrl(value: string) {

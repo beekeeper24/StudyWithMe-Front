@@ -33,6 +33,13 @@ export type ChatRoomMember = {
   joinedAt?: string
 }
 
+export type StudyJoinRequest = {
+  memberId: number
+  nickname?: string | null
+  profileImageUrl?: string | null
+  requestedAt?: string
+}
+
 export type NotificationItem = {
   id?: number
   receiverMemberId: number
@@ -73,6 +80,7 @@ export type StudyItem = {
   schedule?: string | null
   status: string
   joinedByRequester?: boolean
+  joinRequestedByRequester?: boolean
   ownedByRequester?: boolean
   createdAt?: string
   updatedAt?: string
