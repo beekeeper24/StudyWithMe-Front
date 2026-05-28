@@ -357,6 +357,17 @@ export async function replyToComment(
   })
 }
 
+export async function updateComment(
+  accessToken: string,
+  commentId: number,
+  payload: { content: string },
+): Promise<CommentItem> {
+  return request<CommentItem>(`/api/v1/comments/${commentId}`, accessToken, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
 export async function deleteComment(
   accessToken: string,
   commentId: number,
