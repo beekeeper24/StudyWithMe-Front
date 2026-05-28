@@ -11,6 +11,7 @@ import type {
   PostItem,
   StudyHistory,
   StudyItem,
+  StudyJoinRequest,
 } from './types'
 
 type ApiResponse<T> = {
@@ -24,6 +25,7 @@ type ApiErrorResponse = {
   error?: {
     code?: string
     message?: string
+    detail?: unknown
   }
 }
 
@@ -38,12 +40,14 @@ export type StudyPayload = {
 
 export class ApiClientError extends Error {
   code?: string
+  detail?: unknown
   status: number
 
-  constructor(message: string, options: { code?: string; status: number }) {
+  constructor(message: string, options: { code?: string; detail?: unknown; status: number }) {
     super(message)
     this.name = 'ApiClientError'
     this.code = options.code
+    this.detail = options.detail
     this.status = options.status
   }
 }
@@ -112,6 +116,16 @@ export async function deleteChatRoom(accessToken: string, roomId: number): Promi
   })
 }
 
+export async function createPrivateChatRoom(
+  accessToken: string,
+  targetMemberId: number,
+): Promise<ChatRoom> {
+  return request<ChatRoom>('/api/v1/chat/private-rooms', accessToken, {
+    method: 'POST',
+    body: JSON.stringify({ targetMemberId }),
+  })
+}
+
 export async function createStudyChatRoom(
   accessToken: string,
   studyId: number,
@@ -147,6 +161,13 @@ export async function fetchStudy(studyId: number, accessToken?: string): Promise
   return request<StudyItem>(`/api/v1/studies/${studyId}`, accessToken)
 }
 
+export async function fetchStudyJoinRequests(
+  accessToken: string,
+  studyId: number,
+): Promise<StudyJoinRequest[]> {
+  return request<StudyJoinRequest[]>(`/api/v1/studies/${studyId}/join-requests`, accessToken)
+}
+
 export async function createStudy(
   accessToken: string,
   payload: StudyPayload,
@@ -177,6 +198,39 @@ export async function joinStudy(
   })
 }
 
+export async function approveStudyJoinRequest(
+  accessToken: string,
+  studyId: number,
+  memberId: number,
+): Promise<StudyItem> {
+  return request<StudyItem>(
+    `/api/v1/studies/${studyId}/join-requests/${memberId}/approve`,
+    accessToken,
+    { method: 'POST' },
+  )
+}
+
+export async function rejectStudyJoinRequest(
+  accessToken: string,
+  studyId: number,
+  memberId: number,
+): Promise<StudyItem> {
+  return request<StudyItem>(
+    `/api/v1/studies/${studyId}/join-requests/${memberId}/reject`,
+    accessToken,
+    { method: 'POST' },
+  )
+}
+
+export async function cancelStudyJoinRequest(
+  accessToken: string,
+  studyId: number,
+): Promise<StudyItem> {
+  return request<StudyItem>(`/api/v1/studies/${studyId}/join-requests/cancel`, accessToken, {
+    method: 'POST',
+  })
+}
+
 export async function leaveStudy(
   accessToken: string,
   studyId: number,
@@ -192,6 +246,24 @@ export async function closeStudy(
 ): Promise<StudyItem> {
   return request<StudyItem>(`/api/v1/studies/${studyId}/close`, accessToken, {
     method: 'POST',
+  })
+}
+
+export async function endStudy(
+  accessToken: string,
+  studyId: number,
+): Promise<StudyItem> {
+  return request<StudyItem>(`/api/v1/studies/${studyId}/end`, accessToken, {
+    method: 'POST',
+  })
+}
+
+export async function deleteStudy(
+  accessToken: string,
+  studyId: number,
+): Promise<StudyItem> {
+  return request<StudyItem>(`/api/v1/studies/${studyId}`, accessToken, {
+    method: 'DELETE',
   })
 }
 
@@ -286,6 +358,7 @@ async function request<T>(
     const errorBody = body as ApiErrorResponse
     throw new ApiClientError(errorBody.error?.message ?? `HTTP ${response.status}`, {
       code: errorBody.error?.code,
+      detail: errorBody.error?.detail,
       status: response.status,
     })
   }
