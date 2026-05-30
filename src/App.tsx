@@ -3,6 +3,8 @@ import type { Client } from '@stomp/stompjs'
 import {
   Bell,
   BookOpen,
+  ChevronLeft,
+  ChevronRight,
   CheckCircle2,
   CircleAlert,
   Circle,
@@ -283,6 +285,7 @@ function App() {
   const [commentEditText, setCommentEditText] = useState('')
   const [commentDeleteTarget, setCommentDeleteTarget] = useState<CommentItem | null>(null)
   const [studyConfirmAction, setStudyConfirmAction] = useState<StudyConfirmAction | null>(null)
+  const [lobbySlideIndex, setLobbySlideIndex] = useState(0)
   const [showDevTools, setShowDevTools] = useState(false)
   const [showNotificationMenu, setShowNotificationMenu] = useState(false)
   const [showProfileMenu, setShowProfileMenu] = useState(false)
@@ -1724,79 +1727,145 @@ function App() {
   )
 
   function renderLobby() {
-    const lobbyActiveStudies = myStudyHistory.activeStudies.slice(0, 3)
-    const lobbyRecruitingStudies = recruitingStudies.slice(0, 4)
+    const lobbySlides = [
+      {
+        id: 'study',
+        label: '스터디 모집',
+        title: '함께 공부할 사람을 찾고',
+        view: 'studies' as WorkspaceView,
+        icon: BookOpen,
+      },
+      {
+        id: 'community',
+        label: '커뮤니티',
+        title: '경험과 질문을 나누고',
+        view: 'posts' as WorkspaceView,
+        icon: Newspaper,
+      },
+      {
+        id: 'chat',
+        label: '채팅',
+        title: '참여자와 바로 이어집니다',
+        view: 'chat' as WorkspaceView,
+        icon: MessageSquareText,
+      },
+    ]
+    const activeLobbySlide = lobbySlides[lobbySlideIndex]
+    const ActiveLobbyIcon = activeLobbySlide.icon
+    const moveLobbySlide = (direction: 1 | -1) => {
+      setLobbySlideIndex((current) => (current + direction + lobbySlides.length) % lobbySlides.length)
+    }
 
     return (
       <div className="lobby-page">
-        <section className="lobby-hero">
-          <div>
-            <span className="eyebrow">Lobby</span>
-            <h2>오늘의 스터디</h2>
+        <section className="lobby-showcase" aria-label="StudyWithMe 로비">
+          <div className="lobby-showcase-copy">
+            <span className="eyebrow">StudyWithMe</span>
+            <h2>스터디가 모이고 대화가 이어지는 공간</h2>
+            <div className="lobby-showcase-actions">
+              <button
+                className="primary"
+                type="button"
+                onClick={() => setActiveView(activeLobbySlide.view)}
+              >
+                <ActiveLobbyIcon size={17} />
+                {activeLobbySlide.label}
+              </button>
+              <button type="button" onClick={() => moveLobbySlide(1)}>
+                다음 보기
+              </button>
+            </div>
           </div>
-          <button className="primary" type="button" onClick={() => setActiveView('studies')}>
-            <BookOpen size={17} />
-            스터디 보러가기
-          </button>
-        </section>
 
-        <section className="lobby-study-home" aria-label="스터디 홈">
-          <article className="lobby-study-section lobby-study-section-primary">
-            <div className="section-heading compact">
-              <div>
-                <span className="eyebrow">Study</span>
-                <h2>참여 중인 스터디</h2>
-              </div>
-            </div>
-            {lobbyActiveStudies.length === 0 ? (
-              <EmptyState icon={BookOpen} text="참여 중인 스터디가 없습니다." />
-            ) : (
-              <div className="lobby-active-study-list">
-                {lobbyActiveStudies.map((study) => (
-                  <button
-                    className="lobby-active-study-card"
-                    key={`lobby-study-${study.id}`}
-                    type="button"
-                    onClick={() => openStudyHistoryDetail(study)}
-                  >
-                    <div>
-                      <strong>{study.title}</strong>
-                      <span>{studyOwnerLabel(study)} · {studyDetail(study).progressMethod}</span>
-                    </div>
-                    <span className={`study-status-label ${studyStatusClassName(study.status)}`}>
-                      {studyStatusLabel(study.status)}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </article>
+          <div className="lobby-carousel" aria-live="polite">
+            <div
+              className="lobby-carousel-track"
+              style={{ transform: `translateX(-${lobbySlideIndex * 100}%)` }}
+            >
+              <article className="lobby-slide study-slide" aria-label="스터디 모집 화면">
+                <div className="lobby-slide-top">
+                  <span>Study</span>
+                  <strong>스터디 모집</strong>
+                </div>
+                <div className="feature-board">
+                  <div className="feature-card wide">
+                    <strong>React 집중 스터디</strong>
+                    <span>온라인 · 6명 · 주 2회</span>
+                    <div className="feature-progress"><span /></div>
+                  </div>
+                  <div className="feature-card">
+                    <strong>SQL 문제풀이</strong>
+                    <span>모집 중</span>
+                  </div>
+                  <div className="feature-card">
+                    <strong>CS 면접 준비</strong>
+                    <span>승인 대기</span>
+                  </div>
+                </div>
+              </article>
 
-          <article className="lobby-study-section">
-            <div className="section-heading compact">
-              <div>
-                <span className="eyebrow">Recruiting</span>
-                <h2>모집 중인 스터디</h2>
-              </div>
+              <article className="lobby-slide community-slide" aria-label="커뮤니티 화면">
+                <div className="lobby-slide-top">
+                  <span>Community</span>
+                  <strong>커뮤니티</strong>
+                </div>
+                <div className="feature-feed">
+                  <div>
+                    <strong>스터디 회고 공유</strong>
+                    <span>후기게시판 · 방금 전</span>
+                  </div>
+                  <div>
+                    <strong>집중이 안 될 때 루틴</strong>
+                    <span>자유게시판 · 댓글 8</span>
+                  </div>
+                  <div>
+                    <strong>면접 질문 정리 방식</strong>
+                    <span>질문게시판 · 답변 3</span>
+                  </div>
+                </div>
+              </article>
+
+              <article className="lobby-slide chat-slide" aria-label="채팅 화면">
+                <div className="lobby-slide-top">
+                  <span>Chat</span>
+                  <strong>채팅</strong>
+                </div>
+                <div className="feature-chat">
+                  <div className="feature-bubble">오늘 범위 어디까지 할까요?</div>
+                  <div className="feature-bubble self">저는 3장까지 가능합니다.</div>
+                  <div className="feature-bubble">그럼 10시에 맞춰서 시작해요.</div>
+                </div>
+              </article>
             </div>
-            {lobbyRecruitingStudies.length === 0 ? (
-              <EmptyState icon={Users} text="모집 중인 스터디가 없습니다." />
-            ) : (
-              <div className="lobby-preview-list">
-                {lobbyRecruitingStudies.map((study) => (
-                  <button
-                    className="lobby-preview-row"
-                    key={`lobby-recruiting-${study.id}`}
-                    type="button"
-                    onClick={() => toggleStudyDetail(study.id)}
-                  >
-                    <strong>{study.title}</strong>
-                    <span>{studyOwnerLabel(study)} · {studyDetail(study).capacity}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </article>
+            <button
+              className="lobby-carousel-arrow previous"
+              type="button"
+              onClick={() => moveLobbySlide(-1)}
+              aria-label="이전 로비 화면"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <button
+              className="lobby-carousel-arrow next"
+              type="button"
+              onClick={() => moveLobbySlide(1)}
+              aria-label="다음 로비 화면"
+            >
+              <ChevronRight size={18} />
+            </button>
+            <div className="lobby-carousel-dots" aria-label="로비 화면 선택">
+              {lobbySlides.map((slide, index) => (
+                <button
+                  className={index === lobbySlideIndex ? 'active' : ''}
+                  key={slide.id}
+                  type="button"
+                  onClick={() => setLobbySlideIndex(index)}
+                  aria-label={`${slide.label} 보기`}
+                  aria-pressed={index === lobbySlideIndex}
+                />
+              ))}
+            </div>
+          </div>
         </section>
         {showDevTools && renderActivityPanel()}
       </div>
