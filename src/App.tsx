@@ -122,6 +122,7 @@ function communityBoardId(boardType: PostBoardType): CommunityBoardId {
 }
 
 const postPageSize = 20
+const lobbySlideCount = 3
 
 type CommunityRoute = {
   boardId: CommunityBoardId
@@ -379,6 +380,14 @@ function App() {
     [notifications],
   )
   const isAdmin = profile?.roles?.includes('ADMIN') === true
+
+  useEffect(() => {
+    if (activeView !== 'lobby') return undefined
+    const timer = window.setInterval(() => {
+      setLobbySlideIndex((current) => (current + 1) % lobbySlideCount)
+    }, 6000)
+    return () => window.clearInterval(timer)
+  }, [activeView])
 
   useEffect(() => {
     if (!toast) return undefined
@@ -1593,11 +1602,7 @@ function App() {
       </aside>
 
       <main className="workspace">
-        <header className="topbar">
-          <div>
-            <span className="eyebrow">StudyWithMe</span>
-            <h1>{pageTitle()}</h1>
-          </div>
+        <header className="topbar" aria-label="계정 및 알림">
           <div className="topbar-actions">
             <div className="topbar-menu">
               <button
@@ -1771,9 +1776,6 @@ function App() {
                 <ActiveLobbyIcon size={17} />
                 {activeLobbySlide.label}
               </button>
-              <button type="button" onClick={() => moveLobbySlide(1)}>
-                다음 보기
-              </button>
             </div>
           </div>
 
@@ -1785,10 +1787,9 @@ function App() {
               <article className="lobby-slide study-slide" aria-label="스터디 모집 화면">
                 <div className="lobby-slide-top">
                   <span>Study</span>
-                  <strong>스터디 모집</strong>
                 </div>
                 <div className="feature-board">
-                  <div className="feature-card wide">
+                  <div className="feature-card">
                     <strong>React 집중 스터디</strong>
                     <span>온라인 · 6명 · 주 2회</span>
                     <div className="feature-progress"><span /></div>
@@ -1801,13 +1802,16 @@ function App() {
                     <strong>CS 면접 준비</strong>
                     <span>승인 대기</span>
                   </div>
+                  <div className="feature-card">
+                    <strong>알고리즘 루틴</strong>
+                    <span>평일 저녁</span>
+                  </div>
                 </div>
               </article>
 
               <article className="lobby-slide community-slide" aria-label="커뮤니티 화면">
                 <div className="lobby-slide-top">
                   <span>Community</span>
-                  <strong>커뮤니티</strong>
                 </div>
                 <div className="feature-feed">
                   <div>
@@ -1828,7 +1832,6 @@ function App() {
               <article className="lobby-slide chat-slide" aria-label="채팅 화면">
                 <div className="lobby-slide-top">
                   <span>Chat</span>
-                  <strong>채팅</strong>
                 </div>
                 <div className="feature-chat">
                   <div className="feature-bubble">오늘 범위 어디까지 할까요?</div>
@@ -3381,13 +3384,6 @@ function App() {
     )
   }
 
-  function pageTitle() {
-    if (activeView === 'lobby') return '홈'
-    if (activeView === 'studies') return '스터디'
-    if (activeView === 'posts') return '커뮤니티'
-    if (activeView === 'mypage') return '마이페이지'
-    return '채팅'
-  }
 }
 
 function EmptyState({
