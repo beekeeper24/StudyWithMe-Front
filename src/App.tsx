@@ -58,6 +58,8 @@ import {
   fetchStudy,
   fetchStudyJoinRequests,
   fetchStudies,
+  hideAllStudyHistory,
+  hideStudyHistory,
   joinStudy,
   leaveStudy,
   logoutSession,
@@ -195,7 +197,7 @@ const emptyPostForm = { title: '', content: '' }
 const emptyStudyHistory: StudyHistory = { activeStudies: [], pastStudies: [] }
 type StudyBoardMode = 'list' | 'write'
 type StudyListScope = 'recruiting' | 'active'
-type StudyAction = 'join' | 'leave' | 'close' | 'end' | 'delete'
+type StudyAction = 'join' | 'leave' | 'close' | 'end' | 'delete' | 'hideHistory'
 type PostBoardMode = 'list' | 'detail' | 'write'
 type ToastKind = 'success' | 'error' | 'info'
 type ToastMessage = {
@@ -204,6 +206,9 @@ type ToastMessage = {
   title: string
   message?: string
 }
+type StudyConfirmAction =
+  | { type: 'study'; studyId: number; action: 'delete' | 'hideHistory'; title: string; message: string; confirmLabel: string }
+  | { type: 'allHistory'; title: string; message: string; confirmLabel: string }
 
 const studyListScopes: Array<{ id: StudyListScope; label: string }> = [
   { id: 'recruiting', label: '모집 중' },
@@ -277,6 +282,7 @@ function App() {
   const [editingCommentId, setEditingCommentId] = useState<number | null>(null)
   const [commentEditText, setCommentEditText] = useState('')
   const [commentDeleteTarget, setCommentDeleteTarget] = useState<CommentItem | null>(null)
+  const [studyConfirmAction, setStudyConfirmAction] = useState<StudyConfirmAction | null>(null)
   const [showDevTools, setShowDevTools] = useState(false)
   const [showNotificationMenu, setShowNotificationMenu] = useState(false)
   const [showProfileMenu, setShowProfileMenu] = useState(false)
@@ -898,7 +904,6 @@ function App() {
 
   async function mutateStudy(studyId: number, action: StudyAction) {
     if (!canConnect) return
-    if (action === 'delete' && !window.confirm('스터디를 삭제할까요?')) return
     const wasSelected = selectedStudy?.id === studyId
     try {
       if (action === 'join') await joinStudy(accessToken.trim(), studyId)
@@ -906,6 +911,7 @@ function App() {
       if (action === 'close') await closeStudy(accessToken.trim(), studyId)
       if (action === 'end') await endStudy(accessToken.trim(), studyId)
       if (action === 'delete') await deleteStudy(accessToken.trim(), studyId)
+      if (action === 'hideHistory') await hideStudyHistory(accessToken.trim(), studyId)
       await loadStudies()
       await loadChatRooms()
       await loadMyStudies()
@@ -913,7 +919,7 @@ function App() {
       if (selectedStudy?.ownedByRequester) {
         await loadStudyJoinRequests(studyId)
       }
-      if (action === 'close' || action === 'end' || action === 'delete') {
+      if (action === 'close' || action === 'end' || action === 'delete' || action === 'hideHistory') {
         setSelectedStudy(null)
       } else if (wasSelected) {
         await selectStudy(studyId)
@@ -922,6 +928,60 @@ function App() {
       showToast('success', studyActionSuccessMessage(action))
     } catch (error) {
       reportRequestError(error, studyActionFailureMessage(action))
+    }
+  }
+
+  function requestStudyMutation(studyId: number, action: StudyAction) {
+    if (action === 'delete') {
+      setStudyConfirmAction({
+        type: 'study',
+        studyId,
+        action,
+        title: '스터디 삭제',
+        message: '스터디를 삭제할까요?',
+        confirmLabel: '삭제',
+      })
+      return
+    }
+    if (action === 'hideHistory') {
+      setStudyConfirmAction({
+        type: 'study',
+        studyId,
+        action,
+        title: '지난 스터디 목록 삭제',
+        message: '이 스터디를 지난 스터디 목록에서 삭제할까요?',
+        confirmLabel: '목록에서 삭제',
+      })
+      return
+    }
+    void mutateStudy(studyId, action)
+  }
+
+  function requestHideAllStudyHistory() {
+    if (myStudyHistory.pastStudies.length === 0) return
+    setStudyConfirmAction({
+      type: 'allHistory',
+      title: '지난 스터디 전체 삭제',
+      message: '지난 스터디 목록을 모두 비울까요?',
+      confirmLabel: '전체 삭제',
+    })
+  }
+
+  async function confirmStudyAction() {
+    if (!studyConfirmAction || !canConnect) return
+    const action = studyConfirmAction
+    setStudyConfirmAction(null)
+    if (action.type === 'study') {
+      await mutateStudy(action.studyId, action.action)
+      return
+    }
+    try {
+      await hideAllStudyHistory(accessToken.trim())
+      await loadMyStudies()
+      appendLog('지난 스터디 전체 목록 삭제 완료')
+      showToast('success', '지난 스터디 목록을 비웠습니다.')
+    } catch (error) {
+      reportRequestError(error, '지난 스터디 목록을 비우지 못했습니다.')
     }
   }
 
@@ -1656,6 +1716,7 @@ function App() {
         {activeView === 'mypage' && renderMyPage()}
         {renderStudyDetailModal()}
         {showAccountManagementModal && renderAccountManagementModal()}
+        {studyConfirmAction && renderStudyConfirmModal()}
         {commentDeleteTarget && renderCommentDeleteConfirmModal()}
       </main>
       {toast && renderToast()}
@@ -2032,7 +2093,7 @@ function App() {
             <button
               className="danger-text-button"
               type="button"
-              onClick={() => mutateStudy(study.id, 'delete')}
+              onClick={() => requestStudyMutation(study.id, 'delete')}
               disabled={!canConnect}
             >
               삭제
@@ -2179,7 +2240,7 @@ function App() {
                   <button
                     className="danger-text-button"
                     type="button"
-                    onClick={() => mutateStudy(selectedStudy.id, 'delete')}
+                    onClick={() => requestStudyMutation(selectedStudy.id, 'delete')}
                     disabled={!canConnect}
                   >
                     삭제
@@ -2292,7 +2353,18 @@ function App() {
                 <span className="eyebrow">History</span>
                 <h2>지난 스터디</h2>
               </div>
-              <strong className="history-count">{myStudyHistory.pastStudies.length}</strong>
+              <div className="history-heading-actions">
+                <strong className="history-count">{myStudyHistory.pastStudies.length}</strong>
+                {myStudyHistory.pastStudies.length > 0 && (
+                  <button
+                    className="history-clear-button"
+                    type="button"
+                    onClick={requestHideAllStudyHistory}
+                  >
+                    전체 삭제
+                  </button>
+                )}
+              </div>
             </div>
             {renderStudyHistoryList(myStudyHistory.pastStudies, '지난 참여 이력이 없습니다.', 'past')}
           </section>
@@ -2459,6 +2531,56 @@ function App() {
     )
   }
 
+  function renderStudyConfirmModal() {
+    if (!studyConfirmAction) return null
+
+    return (
+      <div
+        className="modal-backdrop"
+        role="presentation"
+        onMouseDown={() => setStudyConfirmAction(null)}
+      >
+        <section
+          className="account-modal confirm-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="study-confirm-title"
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <div className="account-modal-header">
+            <div>
+              <span className="eyebrow">Study</span>
+              <h2 id="study-confirm-title">{studyConfirmAction.title}</h2>
+            </div>
+            <button
+              className="icon-button"
+              type="button"
+              aria-label="확인 창 닫기"
+              onClick={() => setStudyConfirmAction(null)}
+            >
+              <X size={18} />
+            </button>
+          </div>
+          <div className="confirm-modal-body">
+            <p>{studyConfirmAction.message}</p>
+            <div className="withdrawal-confirm-actions">
+              <button type="button" onClick={() => setStudyConfirmAction(null)}>
+                취소
+              </button>
+              <button
+                className="danger-text-button"
+                type="button"
+                onClick={confirmStudyAction}
+              >
+                {studyConfirmAction.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </section>
+      </div>
+    )
+  }
+
   function renderStudyHistoryList(
     items: StudyItem[],
     emptyText: string,
@@ -2515,13 +2637,15 @@ function App() {
                     종료
                   </button>
                 )}
-                {study.ownedByRequester && isHistorical && isStudyEnded(study.status) && !isStudyDeleted(study.status) && (
+                {isHistorical && (
                   <button
-                    className="danger-text-button"
+                    className="history-remove-button"
                     type="button"
-                    onClick={() => mutateStudy(study.id, 'delete')}
+                    onClick={() => requestStudyMutation(study.id, 'hideHistory')}
+                    aria-label={`${study.title} 지난 스터디 목록에서 삭제`}
+                    title="목록에서 삭제"
                   >
-                    삭제
+                    <X size={15} />
                   </button>
                 )}
                 {isJoined && !study.ownedByRequester && !isHistorical && !isStudyEnded(study.status) && (
@@ -3215,6 +3339,7 @@ function actionLabel(action: StudyAction) {
   if (action === 'close') return '마감'
   if (action === 'end') return '종료'
   if (action === 'delete') return '삭제'
+  if (action === 'hideHistory') return '목록 삭제'
   return '탈퇴'
 }
 
@@ -3223,6 +3348,7 @@ function studyActionSuccessMessage(action: StudyAction) {
   if (action === 'close') return '스터디 모집을 마감했습니다.'
   if (action === 'end') return '스터디를 종료했습니다.'
   if (action === 'delete') return '스터디를 삭제했습니다.'
+  if (action === 'hideHistory') return '지난 스터디 목록에서 삭제했습니다.'
   return '스터디에서 탈퇴했습니다.'
 }
 
@@ -3231,6 +3357,7 @@ function studyActionFailureMessage(action: StudyAction) {
   if (action === 'close') return '스터디 모집을 마감하지 못했습니다.'
   if (action === 'end') return '스터디를 종료하지 못했습니다.'
   if (action === 'delete') return '스터디를 삭제하지 못했습니다.'
+  if (action === 'hideHistory') return '지난 스터디 목록에서 삭제하지 못했습니다.'
   return '스터디에서 탈퇴하지 못했습니다.'
 }
 

@@ -1224,6 +1224,30 @@ textarea[aria-invalid="true"] {
   font-size: 13px;
 }
 
+.history-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.history-clear-button {
+  min-height: 28px;
+  padding: 0 9px;
+  color: #6b7684;
+  background: #f2f4f6;
+  font-size: 12px;
+  transition:
+    transform 150ms ease,
+    color 150ms ease,
+    background 150ms ease;
+}
+
+.history-clear-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  color: #191f28;
+  background: #e5e8eb;
+}
+
 .history-list {
   display: grid;
   gap: 10px;
@@ -1276,6 +1300,25 @@ textarea[aria-invalid="true"] {
 .history-row-actions button.primary {
   color: #ffffff;
   background: #24272d;
+}
+
+.history-remove-button {
+  width: 30px;
+  min-height: 30px;
+  padding: 0;
+  color: #8b95a1;
+  background: transparent;
+  border-radius: 999px;
+  transition:
+    transform 150ms ease,
+    color 150ms ease,
+    background 150ms ease;
+}
+
+.history-remove-button:hover:not(:disabled) {
+  transform: translateY(-1px) scale(1.04);
+  color: #b42318;
+  background: #fff1ef;
 }
 
 .study-card-grid {
