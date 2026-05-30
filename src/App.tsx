@@ -1477,6 +1477,7 @@ function App() {
               ))}
             </div>
           </section>
+          {renderAppFooter('login')}
         </main>
         {toast && renderToast()}
       </>
@@ -1553,6 +1554,7 @@ function App() {
               가입 완료
             </button>
           </section>
+          {renderAppFooter('login')}
         </main>
         {toast && renderToast()}
       </>
@@ -1722,6 +1724,7 @@ function App() {
         {activeView === 'posts' && renderPosts()}
         {activeView === 'chat' && renderChat()}
         {activeView === 'mypage' && renderMyPage()}
+        {renderAppFooter('app')}
         {renderStudyDetailModal()}
         {showAccountManagementModal && renderAccountManagementModal()}
         {studyConfirmAction && renderStudyConfirmModal()}
@@ -1730,6 +1733,27 @@ function App() {
       {toast && renderToast()}
     </div>
   )
+
+  function renderAppFooter(variant: 'app' | 'login') {
+    const openPendingPage = (label: string) => {
+      showToast('info', `${label}은 준비 중입니다.`)
+    }
+
+    return (
+      <footer className={variant === 'login' ? 'app-footer login-footer' : 'app-footer'}>
+        <span>© StudyWithMe</span>
+        <button type="button" onClick={() => openPendingPage('이용약관')}>
+          이용약관
+        </button>
+        <button type="button" onClick={() => openPendingPage('개인정보처리방침')}>
+          개인정보처리방침
+        </button>
+        <button type="button" onClick={() => openPendingPage('문의')}>
+          문의
+        </button>
+      </footer>
+    )
+  }
 
   function renderLobby() {
     const lobbySlides = [

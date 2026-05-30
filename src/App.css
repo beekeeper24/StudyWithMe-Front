@@ -115,6 +115,51 @@
   min-height: 48px;
 }
 
+.app-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 30px;
+  padding-top: 18px;
+  border-top: 1px solid #e5e8eb;
+  color: #8b95a1;
+  font-size: 12px;
+}
+
+.app-footer button {
+  min-height: auto;
+  padding: 0;
+  color: #6b7684;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.app-footer button::before {
+  content: "·";
+  margin-right: 7px;
+  color: #c8ced6;
+  font-weight: 400;
+}
+
+.app-footer button:hover:not(:disabled) {
+  color: #191f28;
+  transform: none;
+}
+
+.login-footer {
+  position: absolute;
+  right: 24px;
+  bottom: 18px;
+  left: 24px;
+  z-index: 1;
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
