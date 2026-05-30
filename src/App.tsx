@@ -1593,11 +1593,7 @@ function App() {
       </aside>
 
       <main className="workspace">
-        <header className="topbar">
-          <div>
-            <span className="eyebrow">StudyWithMe</span>
-            <h1>{pageTitle()}</h1>
-          </div>
+        <header className="topbar" aria-label="계정 및 알림">
           <div className="topbar-actions">
             <div className="topbar-menu">
               <button
@@ -3382,13 +3378,6 @@ function App() {
     )
   }
 
-  function pageTitle() {
-    if (activeView === 'lobby') return '홈'
-    if (activeView === 'studies') return '스터디'
-    if (activeView === 'posts') return '커뮤니티'
-    if (activeView === 'mypage') return '마이페이지'
-    return '채팅'
-  }
 }
 
 function EmptyState({
