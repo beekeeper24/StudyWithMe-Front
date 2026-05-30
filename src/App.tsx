@@ -1724,9 +1724,8 @@ function App() {
   )
 
   function renderLobby() {
-    const lobbyStudies = myStudyHistory.activeStudies.slice(0, 3)
-    const lobbyPosts = posts.slice(0, 3)
-    const lobbyRooms = chatRooms.slice(0, 3)
+    const lobbyActiveStudies = myStudyHistory.activeStudies.slice(0, 3)
+    const lobbyRecruitingStudies = recruitingStudies.slice(0, 4)
 
     return (
       <div className="lobby-page">
@@ -1756,85 +1755,58 @@ function App() {
           </button>
         </section>
 
-        <section className="lobby-preview-grid" aria-label="홈 미리보기">
-          <article className="lobby-preview-panel">
+        <section className="lobby-study-home" aria-label="스터디 홈">
+          <article className="lobby-preview-panel lobby-preview-panel-primary">
             <div className="section-heading compact">
               <div>
                 <span className="eyebrow">Study</span>
                 <h2>참여 중</h2>
               </div>
             </div>
-            {lobbyStudies.length === 0 ? (
+            {lobbyActiveStudies.length === 0 ? (
               <EmptyState icon={BookOpen} text="참여 중인 스터디가 없습니다." />
             ) : (
-              <div className="lobby-preview-list">
-                {lobbyStudies.map((study) => (
+              <div className="lobby-active-study-list">
+                {lobbyActiveStudies.map((study) => (
                   <button
-                    className="lobby-preview-row"
+                    className="lobby-active-study-card"
                     key={`lobby-study-${study.id}`}
                     type="button"
                     onClick={() => openStudyHistoryDetail(study)}
                   >
+                    <div>
+                      <strong>{study.title}</strong>
+                      <span>{studyOwnerLabel(study)} · {studyDetail(study).progressMethod}</span>
+                    </div>
+                    <span className={`study-status-label ${studyStatusClassName(study.status)}`}>
+                      {studyStatusLabel(study.status)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </article>
+
+          <article className="lobby-preview-panel">
+            <div className="section-heading compact">
+              <div>
+                <span className="eyebrow">Recruiting</span>
+                <h2>모집 중</h2>
+              </div>
+            </div>
+            {lobbyRecruitingStudies.length === 0 ? (
+              <EmptyState icon={Users} text="모집 중인 스터디가 없습니다." />
+            ) : (
+              <div className="lobby-preview-list">
+                {lobbyRecruitingStudies.map((study) => (
+                  <button
+                    className="lobby-preview-row"
+                    key={`lobby-recruiting-${study.id}`}
+                    type="button"
+                    onClick={() => toggleStudyDetail(study.id)}
+                  >
                     <strong>{study.title}</strong>
-                    <span>{studyOwnerLabel(study)} · {studyDetail(study).progressMethod}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </article>
-
-          <article className="lobby-preview-panel">
-            <div className="section-heading compact">
-              <div>
-                <span className="eyebrow">Community</span>
-                <h2>최근 커뮤니티</h2>
-              </div>
-            </div>
-            {lobbyPosts.length === 0 ? (
-              <EmptyState icon={Newspaper} text="최근 글이 없습니다." />
-            ) : (
-              <div className="lobby-preview-list">
-                {lobbyPosts.map((post) => (
-                  <button
-                    className="lobby-preview-row"
-                    key={`lobby-post-${post.id}`}
-                    type="button"
-                    onClick={() => {
-                      setActiveView('posts')
-                      void selectPost(post.id)
-                    }}
-                  >
-                    <strong>{post.title}</strong>
-                    <span>{authorDisplayName(post)} · {formatTime(post.createdAt)}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </article>
-
-          <article className="lobby-preview-panel">
-            <div className="section-heading compact">
-              <div>
-                <span className="eyebrow">Chat</span>
-                <h2>내 채팅방</h2>
-              </div>
-            </div>
-            {lobbyRooms.length === 0 ? (
-              <EmptyState icon={MessageSquareText} text="참여 중인 채팅방이 없습니다." />
-            ) : (
-              <div className="lobby-preview-list">
-                {lobbyRooms.map((room) => (
-                  <button
-                    className="lobby-preview-row"
-                    key={`lobby-room-${room.id}`}
-                    type="button"
-                    onClick={() => {
-                      setActiveView('chat')
-                      void loadChatMessages(room.id)
-                    }}
-                  >
-                    <strong>{chatRoomTitle(room, knownStudies)}</strong>
-                    <span>{chatRoomMeta(room, knownStudies)}</span>
+                    <span>{studyOwnerLabel(study)} · {studyDetail(study).capacity}</span>
                   </button>
                 ))}
               </div>
