@@ -121,7 +121,7 @@
   align-items: center;
   justify-content: center;
   gap: 7px;
-  margin-top: 30px;
+  margin-top: auto;
   padding-top: 18px;
   border-top: 1px solid #e5e8eb;
   color: #8b95a1;
@@ -338,6 +338,9 @@ button:hover:not(:disabled) {
 
 .workspace {
   min-width: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
   padding: 28px;
 }
 
