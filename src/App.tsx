@@ -122,6 +122,7 @@ function communityBoardId(boardType: PostBoardType): CommunityBoardId {
 }
 
 const postPageSize = 20
+const lobbySlideCount = 3
 
 type CommunityRoute = {
   boardId: CommunityBoardId
@@ -379,6 +380,14 @@ function App() {
     [notifications],
   )
   const isAdmin = profile?.roles?.includes('ADMIN') === true
+
+  useEffect(() => {
+    if (activeView !== 'lobby') return undefined
+    const timer = window.setInterval(() => {
+      setLobbySlideIndex((current) => (current + 1) % lobbySlideCount)
+    }, 6000)
+    return () => window.clearInterval(timer)
+  }, [activeView])
 
   useEffect(() => {
     if (!toast) return undefined
@@ -1766,9 +1775,6 @@ function App() {
               >
                 <ActiveLobbyIcon size={17} />
                 {activeLobbySlide.label}
-              </button>
-              <button type="button" onClick={() => moveLobbySlide(1)}>
-                다음 보기
               </button>
             </div>
           </div>
