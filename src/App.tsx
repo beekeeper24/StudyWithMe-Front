@@ -1785,10 +1785,9 @@ function App() {
               <article className="lobby-slide study-slide" aria-label="스터디 모집 화면">
                 <div className="lobby-slide-top">
                   <span>Study</span>
-                  <strong>스터디 모집</strong>
                 </div>
                 <div className="feature-board">
-                  <div className="feature-card wide">
+                  <div className="feature-card">
                     <strong>React 집중 스터디</strong>
                     <span>온라인 · 6명 · 주 2회</span>
                     <div className="feature-progress"><span /></div>
@@ -1801,13 +1800,16 @@ function App() {
                     <strong>CS 면접 준비</strong>
                     <span>승인 대기</span>
                   </div>
+                  <div className="feature-card">
+                    <strong>알고리즘 루틴</strong>
+                    <span>평일 저녁</span>
+                  </div>
                 </div>
               </article>
 
               <article className="lobby-slide community-slide" aria-label="커뮤니티 화면">
                 <div className="lobby-slide-top">
                   <span>Community</span>
-                  <strong>커뮤니티</strong>
                 </div>
                 <div className="feature-feed">
                   <div>
@@ -1828,7 +1830,6 @@ function App() {
               <article className="lobby-slide chat-slide" aria-label="채팅 화면">
                 <div className="lobby-slide-top">
                   <span>Chat</span>
-                  <strong>채팅</strong>
                 </div>
                 <div className="feature-chat">
                   <div className="feature-bubble">오늘 범위 어디까지 할까요?</div>
