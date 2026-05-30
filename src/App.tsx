@@ -1724,34 +1724,21 @@ function App() {
   )
 
   function renderLobby() {
+    const lobbyStudies = myStudyHistory.activeStudies.slice(0, 3)
+    const lobbyPosts = posts.slice(0, 3)
+    const lobbyRooms = chatRooms.slice(0, 3)
+
     return (
       <div className="lobby-page">
         <section className="lobby-hero">
           <div>
             <span className="eyebrow">Lobby</span>
-            <h2>
-              {profile?.nickname ? `${profile.nickname}님, 오늘의 스터디를 확인해 보세요.` : '오늘의 스터디를 확인해 보세요.'}
-            </h2>
+            <h2>오늘의 스터디</h2>
           </div>
           <button className="primary" type="button" onClick={() => setActiveView('studies')}>
             <BookOpen size={17} />
             스터디 보러가기
           </button>
-        </section>
-
-        <section className="lobby-metrics" aria-label="요약">
-          <article>
-            <strong>{recruitingStudies.length}</strong>
-            <span>모집 중인 스터디</span>
-          </article>
-          <article>
-            <strong>{posts.length}</strong>
-            <span>커뮤니티 글</span>
-          </article>
-          <article>
-            <strong>{chatRooms.length}</strong>
-            <span>참여 중인 채팅방</span>
-          </article>
         </section>
 
         <section className="lobby-actions" aria-label="주요 메뉴">
@@ -1767,6 +1754,92 @@ function App() {
             <MessageSquareText size={20} />
             <strong>채팅</strong>
           </button>
+        </section>
+
+        <section className="lobby-preview-grid" aria-label="홈 미리보기">
+          <article className="lobby-preview-panel">
+            <div className="section-heading compact">
+              <div>
+                <span className="eyebrow">Study</span>
+                <h2>참여 중</h2>
+              </div>
+            </div>
+            {lobbyStudies.length === 0 ? (
+              <EmptyState icon={BookOpen} text="참여 중인 스터디가 없습니다." />
+            ) : (
+              <div className="lobby-preview-list">
+                {lobbyStudies.map((study) => (
+                  <button
+                    className="lobby-preview-row"
+                    key={`lobby-study-${study.id}`}
+                    type="button"
+                    onClick={() => openStudyHistoryDetail(study)}
+                  >
+                    <strong>{study.title}</strong>
+                    <span>{studyOwnerLabel(study)} · {studyDetail(study).progressMethod}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </article>
+
+          <article className="lobby-preview-panel">
+            <div className="section-heading compact">
+              <div>
+                <span className="eyebrow">Community</span>
+                <h2>최근 커뮤니티</h2>
+              </div>
+            </div>
+            {lobbyPosts.length === 0 ? (
+              <EmptyState icon={Newspaper} text="최근 글이 없습니다." />
+            ) : (
+              <div className="lobby-preview-list">
+                {lobbyPosts.map((post) => (
+                  <button
+                    className="lobby-preview-row"
+                    key={`lobby-post-${post.id}`}
+                    type="button"
+                    onClick={() => {
+                      setActiveView('posts')
+                      void selectPost(post.id)
+                    }}
+                  >
+                    <strong>{post.title}</strong>
+                    <span>{authorDisplayName(post)} · {formatTime(post.createdAt)}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </article>
+
+          <article className="lobby-preview-panel">
+            <div className="section-heading compact">
+              <div>
+                <span className="eyebrow">Chat</span>
+                <h2>내 채팅방</h2>
+              </div>
+            </div>
+            {lobbyRooms.length === 0 ? (
+              <EmptyState icon={MessageSquareText} text="참여 중인 채팅방이 없습니다." />
+            ) : (
+              <div className="lobby-preview-list">
+                {lobbyRooms.map((room) => (
+                  <button
+                    className="lobby-preview-row"
+                    key={`lobby-room-${room.id}`}
+                    type="button"
+                    onClick={() => {
+                      setActiveView('chat')
+                      void loadChatMessages(room.id)
+                    }}
+                  >
+                    <strong>{chatRoomTitle(room, knownStudies)}</strong>
+                    <span>{chatRoomMeta(room, knownStudies)}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </article>
         </section>
         {showDevTools && renderActivityPanel()}
       </div>
@@ -2354,7 +2427,6 @@ function App() {
                 <h2>지난 스터디</h2>
               </div>
               <div className="history-heading-actions">
-                <strong className="history-count">{myStudyHistory.pastStudies.length}</strong>
                 {myStudyHistory.pastStudies.length > 0 && (
                   <button
                     className="history-clear-button"
