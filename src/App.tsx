@@ -1575,7 +1575,10 @@ function App() {
                   <div className="profile-menu-header">
                     <img src={profileImageSrc} alt="" />
                     <div>
-                      <strong>{profile?.nickname ?? '프로필 확인 중'}</strong>
+                      <div className="profile-name-row">
+                        <strong>{profile?.nickname ?? '프로필 확인 중'}</strong>
+                        {isAdmin && <span className="admin-role-badge">관리자</span>}
+                      </div>
                       <span>{profile?.email ?? '계정 정보를 불러오는 중입니다.'}</span>
                     </div>
                   </div>
@@ -2649,20 +2652,7 @@ function App() {
 
         {isWritingPost && (
           <article className="board-editor" aria-label={editingPostId ? '글 수정' : '글 작성'}>
-            <div className="board-subpage-header">
-              <button
-                className="icon-text-button"
-                type="button"
-                onClick={() => {
-                  setPostBoardMode(editingPostId && selectedPost ? 'detail' : 'list')
-                  setEditingPostId(null)
-                  setPostForm(emptyPostForm)
-                  if (!editingPostId) pushCommunityRoute(selectedCommunityBoard)
-                }}
-              >
-                <ArrowLeft size={16} />
-                {editingPostId && selectedPost ? '상세' : '목록'}
-              </button>
+            <div className="board-subpage-header editor-header">
               <div>
                 <h2>{editingPostId ? '글 수정' : '글 작성'}</h2>
               </div>
