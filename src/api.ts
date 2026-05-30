@@ -286,6 +286,21 @@ export async function deleteStudy(
   })
 }
 
+export async function hideStudyHistory(
+  accessToken: string,
+  studyId: number,
+): Promise<void> {
+  await request<void>(`/api/v1/studies/me/history/${studyId}`, accessToken, {
+    method: 'DELETE',
+  })
+}
+
+export async function hideAllStudyHistory(accessToken: string): Promise<void> {
+  await request<void>('/api/v1/studies/me/history', accessToken, {
+    method: 'DELETE',
+  })
+}
+
 export async function fetchPosts(
   accessToken?: string,
   boardType?: PostBoardType,
