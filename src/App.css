@@ -444,6 +444,27 @@ button:hover:not(:disabled) {
   line-height: 1.4;
 }
 
+.profile-name-row {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.admin-role-badge {
+  display: inline-flex;
+  min-height: 20px;
+  align-items: center;
+  padding: 0 7px;
+  border: 1px solid #d8dee5;
+  border-radius: 999px;
+  color: #333d4b;
+  background: #f8fafb;
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .profile-menu button {
   justify-content: flex-start;
   padding: 0 10px;
@@ -1677,6 +1698,10 @@ textarea[aria-invalid="true"] {
   align-items: center;
   padding-bottom: 14px;
   border-bottom: 1px solid #edf0f3;
+}
+
+.board-subpage-header.editor-header {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .board-subpage-header h2 {
