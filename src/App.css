@@ -1154,7 +1154,7 @@ textarea[aria-invalid="true"] {
 }
 
 .board-page {
-  max-width: 980px;
+  max-width: 1120px;
   margin: 0 auto;
 }
 
@@ -1178,11 +1178,13 @@ textarea[aria-invalid="true"] {
 }
 
 .study-page {
-  max-width: 980px;
+  width: 100%;
+  max-width: 1160px;
   margin: 0 auto;
 }
 
 .my-page {
+  width: 100%;
   max-width: 1040px;
   margin: 0 auto;
 }
