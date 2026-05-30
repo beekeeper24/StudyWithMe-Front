@@ -289,8 +289,14 @@ export async function deleteStudy(
 export async function fetchPosts(
   accessToken?: string,
   boardType?: PostBoardType,
+  page = 0,
+  size = 20,
 ): Promise<PostItem[]> {
-  const query = boardType ? `?boardType=${encodeURIComponent(boardType)}` : ''
+  const params = new URLSearchParams()
+  if (boardType) params.set('boardType', boardType)
+  params.set('page', String(page))
+  params.set('size', String(size))
+  const query = `?${params.toString()}`
   return request<PostItem[]>(`/api/v1/posts${query}`, accessToken)
 }
 

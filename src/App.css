@@ -1093,6 +1093,35 @@ textarea[aria-invalid="true"] {
   background: #ffffff;
 }
 
+.confirm-modal {
+  width: min(460px, 100%);
+}
+
+.confirm-modal-body {
+  display: grid;
+  gap: 14px;
+  padding: 16px 18px 18px;
+}
+
+.confirm-modal-body p {
+  color: #191f28;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.confirm-modal-body blockquote {
+  max-height: 110px;
+  overflow: auto;
+  margin: 0;
+  padding: 12px 13px;
+  border: 1px solid #edf0f3;
+  border-radius: 8px;
+  color: #4e5968;
+  background: #f8fafb;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
 .nickname-edit-form {
   display: grid;
   grid-template-columns: minmax(160px, 220px) 64px;
@@ -1518,6 +1547,26 @@ textarea[aria-invalid="true"] {
   overflow: hidden;
   border: 1px solid #e5e8eb;
   border-radius: 8px;
+}
+
+.board-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.board-pagination span {
+  min-width: 34px;
+  color: #4e5968;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.board-pagination button {
+  min-height: 34px;
+  padding: 0 12px;
 }
 
 .board-list-head {

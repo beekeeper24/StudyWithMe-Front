@@ -117,6 +117,28 @@ function communityBoardId(boardType: PostBoardType): CommunityBoardId {
   return communityBoards.find((board) => board.boardType === boardType)?.id ?? 'free'
 }
 
+const postPageSize = 20
+
+type CommunityRoute = {
+  boardId: CommunityBoardId
+  postId?: number
+}
+
+function communityPath(boardId: CommunityBoardId, postId?: number) {
+  return postId ? `/community/${boardId}/${postId}` : `/community/${boardId}`
+}
+
+function parseCommunityRoute(pathname: string): CommunityRoute | null {
+  const parts = pathname.split('/').filter(Boolean)
+  if (parts[0] !== 'community') return null
+  const board = communityBoards.find((item) => item.id === parts[1])
+  if (!board) return null
+  if (parts[2] == null) return { boardId: board.id }
+  const postId = Number(parts[2])
+  if (!Number.isInteger(postId) || postId <= 0) return null
+  return { boardId: board.id, postId }
+}
+
 const recruitingStudyStatuses = new Set(['OPEN', 'RECRUITING'])
 
 const oauthProviders: Array<{ id: OAuthProvider; label: string }> = [
@@ -237,6 +259,8 @@ function App() {
   const [postBoardMode, setPostBoardMode] = useState<PostBoardMode>('list')
   const [selectedCommunityBoard, setSelectedCommunityBoard] =
     useState<CommunityBoardId>('free')
+  const [postPage, setPostPage] = useState(0)
+  const [hasNextPostPage, setHasNextPostPage] = useState(false)
   const [postSearchKeyword, setPostSearchKeyword] = useState('')
   const [comments, setComments] = useState<CommentItem[]>([])
   const [studyForm, setStudyForm] = useState(emptyStudyForm)
@@ -252,6 +276,7 @@ function App() {
   const [replyDrafts, setReplyDrafts] = useState<Record<number, string>>({})
   const [editingCommentId, setEditingCommentId] = useState<number | null>(null)
   const [commentEditText, setCommentEditText] = useState('')
+  const [commentDeleteTarget, setCommentDeleteTarget] = useState<CommentItem | null>(null)
   const [showDevTools, setShowDevTools] = useState(false)
   const [showNotificationMenu, setShowNotificationMenu] = useState(false)
   const [showProfileMenu, setShowProfileMenu] = useState(false)
@@ -377,6 +402,37 @@ function App() {
       cancelled = true
     }
   }, [accessToken, appendLog, canConnect, needsSignup, showToast])
+
+  useEffect(() => {
+    if (!canConnect || needsSignup) return undefined
+
+    function applyCommunityRoute() {
+      const route = parseCommunityRoute(window.location.pathname)
+      if (!route) return
+
+      setActiveView('posts')
+      setSelectedCommunityBoard(route.boardId)
+      setEditingPostId(null)
+      setPostForm(emptyPostForm)
+      setPostSearchKeyword('')
+
+      if (route.postId == null) {
+        setSelectedPost(null)
+        setComments([])
+        setPostBoardMode('list')
+        void loadPosts(route.boardId, 0)
+        return
+      }
+
+      void loadPosts(route.boardId, 0)
+      void selectPost(route.postId, { pushRoute: false })
+    }
+
+    applyCommunityRoute()
+    window.addEventListener('popstate', applyCommunityRoute)
+    return () => window.removeEventListener('popstate', applyCommunityRoute)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accessToken, canConnect, needsSignup])
 
   useEffect(() => {
     if (!showAccountManagementModal) return undefined
@@ -1019,25 +1075,46 @@ function App() {
     return study.joinRequestedByRequester === true
   }
 
-  async function loadPosts(boardId: CommunityBoardId = selectedCommunityBoard) {
+  function pushCommunityRoute(boardId: CommunityBoardId, postId?: number) {
+    const nextPath = communityPath(boardId, postId)
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState(null, '', nextPath)
+    }
+  }
+
+  async function loadPosts(
+    boardId: CommunityBoardId = selectedCommunityBoard,
+    page = postPage,
+  ) {
     try {
-      const items = await fetchPosts(accessToken.trim(), communityBoardType(boardId))
+      const items = await fetchPosts(
+        accessToken.trim(),
+        communityBoardType(boardId),
+        page,
+        postPageSize,
+      )
       setPosts(items)
+      setPostPage(page)
+      setHasNextPostPage(items.length === postPageSize)
     } catch (error) {
       reportRequestError(error, '커뮤니티 글을 불러오지 못했습니다.')
     }
   }
 
-  async function selectPost(postId: number) {
+  async function selectPost(postId: number, options: { pushRoute?: boolean } = {}) {
     try {
       const [post, postComments] = await Promise.all([
         fetchPost(postId, accessToken.trim()),
         fetchComments(postId, accessToken.trim()),
       ])
-      setSelectedCommunityBoard(communityBoardId(post.boardType))
+      const boardId = communityBoardId(post.boardType)
+      setSelectedCommunityBoard(boardId)
       setSelectedPost(post)
       setComments(postComments)
       setPostBoardMode('detail')
+      if (options.pushRoute !== false) {
+        pushCommunityRoute(boardId, post.id)
+      }
     } catch (error) {
       reportRequestError(error, '글 상세를 불러오지 못했습니다.')
     }
@@ -1062,7 +1139,7 @@ function App() {
           })
       setPostForm(emptyPostForm)
       setEditingPostId(null)
-      await loadPosts()
+      await loadPosts(communityBoardId(post.boardType), 0)
       await selectPost(post.id)
       setPostBoardMode('detail')
       appendLog(editingPostId ? '게시글 수정 완료' : '게시글 작성 완료')
@@ -1074,12 +1151,14 @@ function App() {
 
   async function removePost() {
     if (!canConnect || !selectedPost) return
+    const boardId = communityBoardId(selectedPost.boardType)
     try {
       await deletePost(accessToken.trim(), selectedPost.id)
       setSelectedPost(null)
       setComments([])
-      await loadPosts()
+      await loadPosts(boardId, 0)
       setPostBoardMode('list')
+      pushCommunityRoute(boardId)
       appendLog('게시글 삭제 완료')
       showToast('success', '글이 삭제되었습니다.')
     } catch (error) {
@@ -1105,6 +1184,7 @@ function App() {
     setEditingCommentId(null)
     setCommentEditText('')
     setPostBoardMode('write')
+    pushCommunityRoute(selectedCommunityBoard)
   }
 
   async function submitComment() {
@@ -1165,6 +1245,7 @@ function App() {
         setEditingCommentId(null)
         setCommentEditText('')
       }
+      setCommentDeleteTarget(null)
       await selectPost(selectedPostId)
       appendLog('댓글 삭제 완료')
       showToast('success', '댓글이 삭제되었습니다.')
@@ -1572,6 +1653,7 @@ function App() {
         {activeView === 'mypage' && renderMyPage()}
         {renderStudyDetailModal()}
         {showAccountManagementModal && renderAccountManagementModal()}
+        {commentDeleteTarget && renderCommentDeleteConfirmModal()}
       </main>
       {toast && renderToast()}
     </div>
@@ -2323,6 +2405,57 @@ function App() {
     )
   }
 
+  function renderCommentDeleteConfirmModal() {
+    if (!commentDeleteTarget) return null
+
+    return (
+      <div
+        className="modal-backdrop"
+        role="presentation"
+        onMouseDown={() => setCommentDeleteTarget(null)}
+      >
+        <section
+          className="account-modal confirm-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="comment-delete-title"
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <div className="account-modal-header">
+            <div>
+              <span className="eyebrow">Comment</span>
+              <h2 id="comment-delete-title">댓글 삭제</h2>
+            </div>
+            <button
+              className="icon-button"
+              type="button"
+              aria-label="댓글 삭제 창 닫기"
+              onClick={() => setCommentDeleteTarget(null)}
+            >
+              <X size={18} />
+            </button>
+          </div>
+          <div className="confirm-modal-body">
+            <p>이 댓글을 삭제할까요?</p>
+            <blockquote>{commentDeleteTarget.content}</blockquote>
+            <div className="withdrawal-confirm-actions">
+              <button type="button" onClick={() => setCommentDeleteTarget(null)}>
+                취소
+              </button>
+              <button
+                className="danger-text-button"
+                type="button"
+                onClick={() => removeComment(commentDeleteTarget.id)}
+              >
+                삭제
+              </button>
+            </div>
+          </div>
+        </section>
+      </div>
+    )
+  }
+
   function renderStudyHistoryList(
     items: StudyItem[],
     emptyText: string,
@@ -2438,7 +2571,8 @@ function App() {
                 setEditingPostId(null)
                 setSelectedPost(null)
                 setPostSearchKeyword('')
-                void loadPosts(board.id)
+                pushCommunityRoute(board.id)
+                void loadPosts(board.id, 0)
               }}
             >
               {board.label}
@@ -2457,7 +2591,7 @@ function App() {
                   placeholder="검색"
                 />
               </label>
-              <span>{filteredPosts.length}개</span>
+              <span>{postPage + 1}페이지 · {filteredPosts.length}개</span>
             </div>
 
             <div className="board-list" aria-label="게시글 목록">
@@ -2493,6 +2627,23 @@ function App() {
                 ))
               )}
             </div>
+            <div className="board-pagination" aria-label="게시글 페이지 이동">
+              <button
+                type="button"
+                onClick={() => loadPosts(selectedCommunityBoard, Math.max(postPage - 1, 0))}
+                disabled={postPage === 0}
+              >
+                이전
+              </button>
+              <span>{postPage + 1}</span>
+              <button
+                type="button"
+                onClick={() => loadPosts(selectedCommunityBoard, postPage + 1)}
+                disabled={!hasNextPostPage}
+              >
+                다음
+              </button>
+            </div>
           </div>
         )}
 
@@ -2506,6 +2657,7 @@ function App() {
                   setPostBoardMode(editingPostId && selectedPost ? 'detail' : 'list')
                   setEditingPostId(null)
                   setPostForm(emptyPostForm)
+                  if (!editingPostId) pushCommunityRoute(selectedCommunityBoard)
                 }}
               >
                 <ArrowLeft size={16} />
@@ -2543,6 +2695,7 @@ function App() {
                     setPostBoardMode(editingPostId && selectedPost ? 'detail' : 'list')
                     setEditingPostId(null)
                     setPostForm(emptyPostForm)
+                    if (!editingPostId) pushCommunityRoute(selectedCommunityBoard)
                   }}
                 >
                   취소
@@ -2572,6 +2725,7 @@ function App() {
                     onClick={() => {
                       setPostBoardMode('list')
                       setEditingPostId(null)
+                      pushCommunityRoute(selectedCommunityBoard)
                     }}
                   >
                     <ArrowLeft size={16} />
@@ -2656,7 +2810,7 @@ function App() {
                 <button type="button" onClick={() => beginEditComment(comment)}>
                   수정
                 </button>
-                <button type="button" onClick={() => removeComment(comment.id)}>
+                <button type="button" onClick={() => setCommentDeleteTarget(comment)}>
                   삭제
                 </button>
               </div>
@@ -2681,7 +2835,7 @@ function App() {
                       <button type="button" onClick={() => beginEditComment(reply)}>
                         수정
                       </button>
-                      <button type="button" onClick={() => removeComment(reply.id)}>
+                      <button type="button" onClick={() => setCommentDeleteTarget(reply)}>
                         삭제
                       </button>
                     </div>
