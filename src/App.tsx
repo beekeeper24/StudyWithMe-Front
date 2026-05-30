@@ -1740,27 +1740,12 @@ function App() {
           </button>
         </section>
 
-        <section className="lobby-actions" aria-label="주요 메뉴">
-          <button type="button" onClick={() => setActiveView('studies')}>
-            <BookOpen size={20} />
-            <strong>스터디</strong>
-          </button>
-          <button type="button" onClick={() => setActiveView('posts')}>
-            <Newspaper size={20} />
-            <strong>커뮤니티</strong>
-          </button>
-          <button type="button" onClick={() => setActiveView('chat')}>
-            <MessageSquareText size={20} />
-            <strong>채팅</strong>
-          </button>
-        </section>
-
         <section className="lobby-study-home" aria-label="스터디 홈">
-          <article className="lobby-preview-panel lobby-preview-panel-primary">
+          <article className="lobby-study-section lobby-study-section-primary">
             <div className="section-heading compact">
               <div>
                 <span className="eyebrow">Study</span>
-                <h2>참여 중</h2>
+                <h2>참여 중인 스터디</h2>
               </div>
             </div>
             {lobbyActiveStudies.length === 0 ? (
@@ -1787,11 +1772,11 @@ function App() {
             )}
           </article>
 
-          <article className="lobby-preview-panel">
+          <article className="lobby-study-section">
             <div className="section-heading compact">
               <div>
                 <span className="eyebrow">Recruiting</span>
-                <h2>모집 중</h2>
+                <h2>모집 중인 스터디</h2>
               </div>
             </div>
             {lobbyRecruitingStudies.length === 0 ? (

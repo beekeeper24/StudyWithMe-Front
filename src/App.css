@@ -740,18 +740,15 @@ textarea[aria-invalid="true"] {
 
 .lobby-hero {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: 24px;
-  padding: 28px;
-  border: 1px solid #e5e8eb;
-  border-radius: 14px;
-  background: #ffffff;
+  padding: 4px 0 2px;
 }
 
 .lobby-hero h2 {
   max-width: 680px;
-  font-size: 28px;
+  font-size: 24px;
 }
 
 .lobby-hero button {
@@ -759,65 +756,27 @@ textarea[aria-invalid="true"] {
   padding: 0 18px;
 }
 
-.lobby-actions {
-  display: grid;
-  gap: 12px;
-}
-
-.lobby-actions button {
-  border: 1px solid #e5e8eb;
-  border-radius: 14px;
-  background: #ffffff;
-  transition:
-    transform 160ms ease,
-    border-color 160ms ease,
-    background 160ms ease,
-    box-shadow 160ms ease;
-}
-
-.lobby-actions {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.lobby-actions button {
-  min-height: 132px;
-  display: grid;
-  align-content: center;
-  justify-items: center;
-  gap: 10px;
-  padding: 18px;
-  color: #191f28;
-  text-align: center;
-}
-
-.lobby-actions button:hover {
-  transform: translateY(-3px);
-  border-color: #cfd6dd;
-  background: #fbfcfd;
-  box-shadow: 0 12px 28px rgba(25, 31, 40, 0.08);
-}
-
 .lobby-study-home {
   display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.75fr);
-  gap: 12px;
-  align-items: stretch;
+  grid-template-columns: minmax(0, 1.2fr) minmax(340px, 0.8fr);
+  gap: 14px;
+  align-items: start;
 }
 
-.lobby-preview-panel {
+.lobby-study-section {
   min-width: 0;
-  min-height: 238px;
-  padding: 16px;
-  border: 1px solid #e5e8eb;
-  border-radius: 14px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.98)),
-    radial-gradient(circle at 12% 0%, rgba(98, 111, 134, 0.12), transparent 34%),
-    #ffffff;
+  padding: 0;
 }
 
-.lobby-preview-panel-primary {
-  min-height: 238px;
+.lobby-study-section-primary {
+  min-width: 0;
+}
+
+.lobby-study-section .empty-state {
+  min-height: 116px;
+  border: 1px solid #e5e8eb;
+  border-radius: 12px;
+  background: #ffffff;
 }
 
 .lobby-active-study-list {
@@ -827,7 +786,7 @@ textarea[aria-invalid="true"] {
 
 .lobby-active-study-card {
   min-width: 0;
-  min-height: 68px;
+  min-height: 76px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -882,7 +841,7 @@ textarea[aria-invalid="true"] {
 
 .lobby-preview-row {
   width: 100%;
-  min-height: 62px;
+  min-height: 60px;
   display: grid;
   align-content: center;
   gap: 5px;
@@ -2435,7 +2394,6 @@ textarea[aria-invalid="true"] {
 
 @media (max-width: 1180px) {
   .workspace-grid,
-  .lobby-actions,
   .lobby-study-home,
   .study-history-grid {
     grid-template-columns: 1fr;
