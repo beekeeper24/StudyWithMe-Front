@@ -2405,6 +2405,9 @@ function App() {
     const selectedBoard = communityBoards.find((board) => board.id === selectedCommunityBoard)
     const selectedBoardLabel = selectedBoard?.label ?? '자유게시판'
     const canWriteSelectedBoard = selectedBoard?.boardType !== 'NOTICE' || isAdmin
+    const canManageSelectedPost =
+      selectedPost != null &&
+      (selectedPost.ownedByRequester === true || (selectedPost.boardType === 'NOTICE' && isAdmin))
     const isWritingPost = postBoardMode === 'write'
     const isViewingPost = postBoardMode === 'detail'
 
@@ -2584,7 +2587,7 @@ function App() {
                   </div>
                 </header>
                 <p className="post-body">{selectedPost.content}</p>
-                {selectedPost.ownedByRequester === true && (
+                {canManageSelectedPost && (
                   <div className="post-actions">
                     <button type="button" onClick={() => beginEditPost(selectedPost)}>
                       <PencilLine size={16} />
