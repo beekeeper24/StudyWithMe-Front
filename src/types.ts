@@ -49,6 +49,7 @@ export type NotificationItem = {
   type: string
   targetType: string
   targetId: number
+  targetPostId?: number | null
   message: string
   read: boolean
   createdAt?: string | null
