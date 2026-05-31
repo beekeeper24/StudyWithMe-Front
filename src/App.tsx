@@ -302,6 +302,7 @@ function App() {
       : ['프론트가 준비되었습니다.'],
   )
   const clientRef = useRef<Client | null>(null)
+  const postSearchTimerRef = useRef<number | null>(null)
 
   const canConnect = accessToken.trim().length > 0
   const needsSignup = profile?.signupRequired === true
@@ -369,13 +370,6 @@ function App() {
     () => comments.filter((item) => item.parentCommentId == null),
     [comments],
   )
-  const filteredPosts = useMemo(() => {
-    const keyword = postSearchKeyword.trim().toLowerCase()
-    if (!keyword) return posts
-    return posts.filter((post) =>
-      `${post.title} ${post.content} ${authorDisplayName(post)}`.toLowerCase().includes(keyword),
-    )
-  }, [postSearchKeyword, posts])
   const unreadNotifications = useMemo(
     () => notifications.filter((item) => !item.read).length,
     [notifications],
@@ -395,6 +389,14 @@ function App() {
     const timer = window.setTimeout(() => setToast(null), 4200)
     return () => window.clearTimeout(timer)
   }, [toast])
+
+  useEffect(() => {
+    return () => {
+      if (postSearchTimerRef.current != null) {
+        window.clearTimeout(postSearchTimerRef.current)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     if (!canConnect || needsSignup) return undefined
@@ -442,11 +444,11 @@ function App() {
         setSelectedPost(null)
         setComments([])
         setPostBoardMode('list')
-        void loadPosts(route.boardId, 0)
+        void loadPosts(route.boardId, 0, '')
         return
       }
 
-      void loadPosts(route.boardId, 0)
+      void loadPosts(route.boardId, 0, '')
       void selectPost(route.postId, { pushRoute: false })
     }
 
@@ -1174,9 +1176,21 @@ function App() {
     }
   }
 
+  function searchPosts(keyword: string) {
+    setPostSearchKeyword(keyword)
+    if (postSearchTimerRef.current != null) {
+      window.clearTimeout(postSearchTimerRef.current)
+    }
+    postSearchTimerRef.current = window.setTimeout(() => {
+      postSearchTimerRef.current = null
+      void loadPosts(selectedCommunityBoard, 0, keyword)
+    }, 300)
+  }
+
   async function loadPosts(
     boardId: CommunityBoardId = selectedCommunityBoard,
     page = postPage,
+    keyword = postSearchKeyword,
   ) {
     try {
       const pageResult = await fetchPosts(
@@ -1184,6 +1198,7 @@ function App() {
         communityBoardType(boardId),
         page,
         postPageSize,
+        keyword,
       )
       setPosts(pageResult.content)
       setPostPage(pageResult.page)
@@ -2845,7 +2860,7 @@ function App() {
                 setSelectedPost(null)
                 setPostSearchKeyword('')
                 pushCommunityRoute(board.id)
-                void loadPosts(board.id, 0)
+                void loadPosts(board.id, 0, '')
               }}
             >
               {board.label}
@@ -2860,15 +2875,12 @@ function App() {
                 <Search size={16} />
                 <input
                   value={postSearchKeyword}
-                  onChange={(event) => setPostSearchKeyword(event.target.value)}
+                  onChange={(event) => searchPosts(event.target.value)}
                   placeholder="검색"
                 />
               </label>
               <span>
-                {postPage + 1}페이지 ·{' '}
-                {postSearchKeyword.trim()
-                  ? `${filteredPosts.length}/${postTotalElements}개`
-                  : `${postTotalElements}개`}
+                {postPage + 1}페이지 · {postTotalElements}개
               </span>
             </div>
 
@@ -2878,10 +2890,13 @@ function App() {
                 <span>작성자</span>
                 <span>시간</span>
               </div>
-              {filteredPosts.length === 0 ? (
-                <EmptyState icon={Newspaper} text={posts.length === 0 ? '글이 없습니다.' : '검색 결과가 없습니다.'} />
+              {posts.length === 0 ? (
+                <EmptyState
+                  icon={Newspaper}
+                  text={postSearchKeyword.trim() ? '검색 결과가 없습니다.' : '글이 없습니다.'}
+                />
               ) : (
-                filteredPosts.map((post) => (
+                posts.map((post) => (
                   <button
                     className="board-row"
                     key={post.id}
