@@ -276,7 +276,6 @@ function App() {
   const [myStudyHistory, setMyStudyHistory] = useState<StudyHistory>(emptyStudyHistory)
   const [activeHistoryItems, setActiveHistoryItems] = useState<StudyItem[]>([])
   const [pastHistoryItems, setPastHistoryItems] = useState<StudyItem[]>([])
-  const [activeHistorySearchKeyword, setActiveHistorySearchKeyword] = useState('')
   const [pastHistorySearchKeyword, setPastHistorySearchKeyword] = useState('')
   const [activeHistoryPage, setActiveHistoryPage] = useState(0)
   const [pastHistoryPage, setPastHistoryPage] = useState(0)
@@ -336,10 +335,7 @@ function App() {
   )
   const clientRef = useRef<Client | null>(null)
   const studySearchTimerRef = useRef<number | null>(null)
-  const historySearchTimerRefs = useRef<Record<StudyHistoryScope, number | null>>({
-    active: null,
-    past: null,
-  })
+  const historySearchTimerRef = useRef<number | null>(null)
   const postSearchTimerRef = useRef<number | null>(null)
   const postListRequestRef = useRef(0)
 
@@ -438,16 +434,13 @@ function App() {
   }, [toast])
 
   useEffect(() => {
-    const historySearchTimers = historySearchTimerRefs.current
+    const historySearchTimer = historySearchTimerRef
     return () => {
       if (studySearchTimerRef.current != null) {
         window.clearTimeout(studySearchTimerRef.current)
       }
-      if (historySearchTimers.active != null) {
-        window.clearTimeout(historySearchTimers.active)
-      }
-      if (historySearchTimers.past != null) {
-        window.clearTimeout(historySearchTimers.past)
+      if (historySearchTimer.current != null) {
+        window.clearTimeout(historySearchTimer.current)
       }
       if (postSearchTimerRef.current != null) {
         window.clearTimeout(postSearchTimerRef.current)
@@ -657,13 +650,9 @@ function App() {
       window.clearTimeout(studySearchTimerRef.current)
       studySearchTimerRef.current = null
     }
-    if (historySearchTimerRefs.current.active != null) {
-      window.clearTimeout(historySearchTimerRefs.current.active)
-      historySearchTimerRefs.current.active = null
-    }
-    if (historySearchTimerRefs.current.past != null) {
-      window.clearTimeout(historySearchTimerRefs.current.past)
-      historySearchTimerRefs.current.past = null
+    if (historySearchTimerRef.current != null) {
+      window.clearTimeout(historySearchTimerRef.current)
+      historySearchTimerRef.current = null
     }
     if (postSearchTimerRef.current != null) {
       window.clearTimeout(postSearchTimerRef.current)
@@ -681,7 +670,6 @@ function App() {
     setMyStudyHistory(emptyStudyHistory)
     setActiveHistoryItems([])
     setPastHistoryItems([])
-    setActiveHistorySearchKeyword('')
     setPastHistorySearchKeyword('')
     setActiveHistoryPage(0)
     setPastHistoryPage(0)
@@ -928,7 +916,7 @@ function App() {
     setIsHistoryListLoading(true)
     try {
       const [activeResult, pastResult] = await Promise.all([
-        fetchMyStudyPage(token, 'active', activeHistorySearchKeyword, activeHistoryPage, studyHistoryPageSize),
+        fetchMyStudyPage(token, 'active', '', activeHistoryPage, studyHistoryPageSize),
         fetchMyStudyPage(token, 'past', pastHistorySearchKeyword, pastHistoryPage, studyHistoryPageSize),
       ])
       applyStudyHistoryPage('active', activeResult)
@@ -953,32 +941,24 @@ function App() {
   }
 
   function searchStudyHistory(scope: StudyHistoryScope, keyword: string) {
-    if (scope === 'active') {
-      setActiveHistorySearchKeyword(keyword)
-    } else {
-      setPastHistorySearchKeyword(keyword)
-    }
-    const currentTimer = historySearchTimerRefs.current[scope]
+    setPastHistorySearchKeyword(keyword)
+    const currentTimer = historySearchTimerRef.current
     if (currentTimer != null) {
       window.clearTimeout(currentTimer)
     }
-    historySearchTimerRefs.current[scope] = window.setTimeout(() => {
-      historySearchTimerRefs.current[scope] = null
+    historySearchTimerRef.current = window.setTimeout(() => {
+      historySearchTimerRef.current = null
       void loadMyStudyHistoryPage(scope, keyword, 0)
     }, 300)
   }
 
   function clearStudyHistorySearch(scope: StudyHistoryScope) {
-    const currentTimer = historySearchTimerRefs.current[scope]
+    const currentTimer = historySearchTimerRef.current
     if (currentTimer != null) {
       window.clearTimeout(currentTimer)
-      historySearchTimerRefs.current[scope] = null
+      historySearchTimerRef.current = null
     }
-    if (scope === 'active') {
-      setActiveHistorySearchKeyword('')
-    } else {
-      setPastHistorySearchKeyword('')
-    }
+    setPastHistorySearchKeyword('')
     void loadMyStudyHistoryPage(scope, '', 0)
   }
 
@@ -987,7 +967,7 @@ function App() {
   }
 
   function studyHistoryKeyword(scope: StudyHistoryScope) {
-    return scope === 'active' ? activeHistorySearchKeyword : pastHistorySearchKeyword
+    return scope === 'active' ? '' : pastHistorySearchKeyword
   }
 
   function studyHistoryPage(scope: StudyHistoryScope) {
@@ -2831,10 +2811,9 @@ function App() {
                 <h2>참여 중인 스터디</h2>
               </div>
             </div>
-            {renderStudyHistoryControls('active')}
             {renderStudyHistoryList(
               activeHistoryItems,
-              activeHistorySearchKeyword.trim() ? '검색 결과가 없습니다.' : '참여 중인 스터디가 없습니다.',
+              '참여 중인 스터디가 없습니다.',
               'active',
             )}
             {renderStudyHistoryPagination('active')}
