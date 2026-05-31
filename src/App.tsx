@@ -2902,7 +2902,7 @@ function App() {
                 <input
                   value={postSearchKeyword}
                   onChange={(event) => searchPosts(event.target.value)}
-                  placeholder="검색"
+                  placeholder="제목, 내용, 작성자 검색"
                 />
                 {postSearchKeyword.trim() && (
                   <button
