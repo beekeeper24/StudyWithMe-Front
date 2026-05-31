@@ -123,11 +123,11 @@ function communityBoardId(boardType: PostBoardType): CommunityBoardId {
 }
 
 const postPageSize = 20
-const postSearchScopes: Array<{ value: PostSearchScope; label: string; placeholder: string }> = [
-  { value: 'ALL', label: '전체', placeholder: '제목, 내용, 작성자 검색' },
-  { value: 'TITLE', label: '제목', placeholder: '제목 검색' },
-  { value: 'TITLE_CONTENT', label: '제목+내용', placeholder: '제목 또는 내용 검색' },
-  { value: 'AUTHOR', label: '작성자', placeholder: '작성자 검색' },
+const postSearchScopes: Array<{ value: PostSearchScope; label: string }> = [
+  { value: 'ALL', label: '전체' },
+  { value: 'TITLE', label: '제목' },
+  { value: 'TITLE_CONTENT', label: '제목+내용' },
+  { value: 'AUTHOR', label: '작성자' },
 ]
 const lobbySlideCount = 3
 
@@ -2866,8 +2866,6 @@ function App() {
   function renderPosts() {
     const selectedBoard = communityBoards.find((board) => board.id === selectedCommunityBoard)
     const selectedBoardLabel = selectedBoard?.label ?? '자유게시판'
-    const selectedSearchScope =
-      postSearchScopes.find((scope) => scope.value === postSearchScope) ?? postSearchScopes[0]
     const canWriteSelectedBoard = selectedBoard?.boardType !== 'NOTICE' || isAdmin
     const canManageSelectedPost =
       selectedPost != null &&
@@ -2930,7 +2928,6 @@ function App() {
                 <input
                   value={postSearchKeyword}
                   onChange={(event) => searchPosts(event.target.value)}
-                  placeholder={selectedSearchScope.placeholder}
                 />
                 {postSearchKeyword.trim() && (
                   <button
