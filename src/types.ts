@@ -8,6 +8,8 @@ export type PostBoardType = 'FREE' | 'QUESTION' | 'REVIEW' | 'NOTICE'
 
 export type PostSearchScope = 'ALL' | 'TITLE' | 'TITLE_CONTENT' | 'AUTHOR'
 
+export type PostSortOrder = 'LATEST' | 'OLDEST'
+
 export type AccessTokenResponse = {
   accessToken: string
   accessTokenExpiresAt: string

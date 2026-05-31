@@ -92,6 +92,7 @@ import type {
   PostBoardType,
   PostItem,
   PostSearchScope,
+  PostSortOrder,
   StudyHistory,
   StudyItem,
   StudyJoinRequest,
@@ -128,6 +129,10 @@ const postSearchScopes: Array<{ value: PostSearchScope; label: string }> = [
   { value: 'TITLE', label: '제목' },
   { value: 'TITLE_CONTENT', label: '제목+내용' },
   { value: 'AUTHOR', label: '작성자' },
+]
+const postSortOrders: Array<{ value: PostSortOrder; label: string }> = [
+  { value: 'LATEST', label: '최신순' },
+  { value: 'OLDEST', label: '오래된순' },
 ]
 const lobbySlideCount = 3
 
@@ -278,6 +283,7 @@ function App() {
   const [hasNextPostPage, setHasNextPostPage] = useState(false)
   const [postSearchKeyword, setPostSearchKeyword] = useState('')
   const [postSearchScope, setPostSearchScope] = useState<PostSearchScope>('ALL')
+  const [postSortOrder, setPostSortOrder] = useState<PostSortOrder>('LATEST')
   const [isPostListLoading, setIsPostListLoading] = useState(false)
   const [comments, setComments] = useState<CommentItem[]>([])
   const [studyForm, setStudyForm] = useState(emptyStudyForm)
@@ -629,6 +635,8 @@ function App() {
     setPostPage(0)
     setHasNextPostPage(false)
     setPostSearchKeyword('')
+    setPostSearchScope('ALL')
+    setPostSortOrder('LATEST')
     setIsPostListLoading(false)
     setEditingCommentId(null)
     setCommentEditText('')
@@ -1196,7 +1204,7 @@ function App() {
     }
     postSearchTimerRef.current = window.setTimeout(() => {
       postSearchTimerRef.current = null
-      void loadPosts(selectedCommunityBoard, 0, keyword, postSearchScope)
+      void loadPosts(selectedCommunityBoard, 0, keyword, postSearchScope, postSortOrder)
     }, 300)
   }
 
@@ -1206,7 +1214,16 @@ function App() {
       window.clearTimeout(postSearchTimerRef.current)
       postSearchTimerRef.current = null
     }
-    void loadPosts(selectedCommunityBoard, 0, postSearchKeyword, searchScope)
+    void loadPosts(selectedCommunityBoard, 0, postSearchKeyword, searchScope, postSortOrder)
+  }
+
+  function changePostSortOrder(sortOrder: PostSortOrder) {
+    setPostSortOrder(sortOrder)
+    if (postSearchTimerRef.current != null) {
+      window.clearTimeout(postSearchTimerRef.current)
+      postSearchTimerRef.current = null
+    }
+    void loadPosts(selectedCommunityBoard, 0, postSearchKeyword, postSearchScope, sortOrder)
   }
 
   function clearPostSearch() {
@@ -1215,7 +1232,7 @@ function App() {
       postSearchTimerRef.current = null
     }
     setPostSearchKeyword('')
-    void loadPosts(selectedCommunityBoard, 0, '', postSearchScope)
+    void loadPosts(selectedCommunityBoard, 0, '', postSearchScope, postSortOrder)
   }
 
   async function loadPosts(
@@ -1223,6 +1240,7 @@ function App() {
     page = postPage,
     keyword = postSearchKeyword,
     searchScope = postSearchScope,
+    sortOrder = postSortOrder,
   ) {
     const requestId = postListRequestRef.current + 1
     postListRequestRef.current = requestId
@@ -1235,6 +1253,7 @@ function App() {
         postPageSize,
         keyword,
         searchScope,
+        sortOrder,
       )
       if (postListRequestRef.current !== requestId) return
       setPosts(pageResult.content)
@@ -2940,6 +2959,18 @@ function App() {
                   </button>
                 )}
               </label>
+              <select
+                aria-label="게시글 정렬"
+                className="board-sort-select"
+                value={postSortOrder}
+                onChange={(event) => changePostSortOrder(event.target.value as PostSortOrder)}
+              >
+                {postSortOrders.map((sortOrder) => (
+                  <option key={sortOrder.value} value={sortOrder.value}>
+                    {sortOrder.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div
