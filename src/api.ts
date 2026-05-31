@@ -307,9 +307,11 @@ export async function fetchPosts(
   boardType?: PostBoardType,
   page = 0,
   size = 20,
+  keyword = '',
 ): Promise<PageResponse<PostItem>> {
   const params = new URLSearchParams()
   if (boardType) params.set('boardType', boardType)
+  if (keyword.trim()) params.set('keyword', keyword.trim())
   params.set('page', String(page))
   params.set('size', String(size))
   const query = `?${params.toString()}`
