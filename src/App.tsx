@@ -54,6 +54,7 @@ import {
   fetchChatRooms,
   fetchComments,
   fetchMe,
+  fetchMyStudyPage,
   fetchMyStudies,
   fetchNotifications,
   fetchPost,
@@ -90,11 +91,13 @@ import type {
   ConnectionStatus,
   NotificationItem,
   OAuthProvider,
+  PageResponse,
   PostBoardType,
   PostItem,
   PostSearchScope,
   PostSortOrder,
   StudyHistory,
+  StudyHistoryScope,
   StudyItem,
   StudyJoinRequest,
   WorkspaceView,
@@ -126,6 +129,7 @@ function communityBoardId(boardType: PostBoardType): CommunityBoardId {
 
 const postPageSize = 20
 const studyPageSize = 20
+const studyHistoryPageSize = 10
 const postSearchScopes: Array<{ value: PostSearchScope; label: string }> = [
   { value: 'ALL', label: '전체' },
   { value: 'TITLE', label: '제목' },
@@ -270,6 +274,15 @@ function App() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [studies, setStudies] = useState<StudyItem[]>([])
   const [myStudyHistory, setMyStudyHistory] = useState<StudyHistory>(emptyStudyHistory)
+  const [activeHistoryItems, setActiveHistoryItems] = useState<StudyItem[]>([])
+  const [pastHistoryItems, setPastHistoryItems] = useState<StudyItem[]>([])
+  const [activeHistorySearchKeyword, setActiveHistorySearchKeyword] = useState('')
+  const [pastHistorySearchKeyword, setPastHistorySearchKeyword] = useState('')
+  const [activeHistoryPage, setActiveHistoryPage] = useState(0)
+  const [pastHistoryPage, setPastHistoryPage] = useState(0)
+  const [hasNextActiveHistoryPage, setHasNextActiveHistoryPage] = useState(false)
+  const [hasNextPastHistoryPage, setHasNextPastHistoryPage] = useState(false)
+  const [isHistoryListLoading, setIsHistoryListLoading] = useState(false)
   const [selectedStudy, setSelectedStudy] = useState<StudyItem | null>(null)
   const [studyJoinRequests, setStudyJoinRequests] = useState<StudyJoinRequest[]>([])
   const [studyBoardMode, setStudyBoardMode] = useState<StudyBoardMode>('list')
@@ -323,6 +336,10 @@ function App() {
   )
   const clientRef = useRef<Client | null>(null)
   const studySearchTimerRef = useRef<number | null>(null)
+  const historySearchTimerRefs = useRef<Record<StudyHistoryScope, number | null>>({
+    active: null,
+    past: null,
+  })
   const postSearchTimerRef = useRef<number | null>(null)
   const postListRequestRef = useRef(0)
 
@@ -421,9 +438,16 @@ function App() {
   }, [toast])
 
   useEffect(() => {
+    const historySearchTimers = historySearchTimerRefs.current
     return () => {
       if (studySearchTimerRef.current != null) {
         window.clearTimeout(studySearchTimerRef.current)
+      }
+      if (historySearchTimers.active != null) {
+        window.clearTimeout(historySearchTimers.active)
+      }
+      if (historySearchTimers.past != null) {
+        window.clearTimeout(historySearchTimers.past)
       }
       if (postSearchTimerRef.current != null) {
         window.clearTimeout(postSearchTimerRef.current)
@@ -527,7 +551,7 @@ function App() {
         if (!cancelled) {
           setNotifications(items)
           setChatRooms(rooms)
-          setMyStudyHistory(history)
+          applyMyStudyHistory(history)
           appendLog('내 정보 조회 성공')
         }
       } catch (error) {
@@ -566,7 +590,7 @@ function App() {
         ])
         if (cancelled) return
         setNotifications(items)
-        setMyStudyHistory(history)
+        applyMyStudyHistory(history)
         setChatRooms(rooms)
         appendLog('세션 자동 복구 완료')
       } catch {
@@ -633,6 +657,14 @@ function App() {
       window.clearTimeout(studySearchTimerRef.current)
       studySearchTimerRef.current = null
     }
+    if (historySearchTimerRefs.current.active != null) {
+      window.clearTimeout(historySearchTimerRefs.current.active)
+      historySearchTimerRefs.current.active = null
+    }
+    if (historySearchTimerRefs.current.past != null) {
+      window.clearTimeout(historySearchTimerRefs.current.past)
+      historySearchTimerRefs.current.past = null
+    }
     if (postSearchTimerRef.current != null) {
       window.clearTimeout(postSearchTimerRef.current)
       postSearchTimerRef.current = null
@@ -647,6 +679,15 @@ function App() {
     setChatMembers([])
     setStudies([])
     setMyStudyHistory(emptyStudyHistory)
+    setActiveHistoryItems([])
+    setPastHistoryItems([])
+    setActiveHistorySearchKeyword('')
+    setPastHistorySearchKeyword('')
+    setActiveHistoryPage(0)
+    setPastHistoryPage(0)
+    setHasNextActiveHistoryPage(false)
+    setHasNextPastHistoryPage(false)
+    setIsHistoryListLoading(false)
     setStudyPage(0)
     setHasNextStudyPage(false)
     setIsStudyListLoading(false)
@@ -839,17 +880,118 @@ function App() {
     void loadStudies(studySearchKeyword, nextPage)
   }
 
+  function applyMyStudyHistory(history: StudyHistory) {
+    setMyStudyHistory(history)
+    setActiveHistoryItems(history.activeStudies.slice(0, studyHistoryPageSize))
+    setPastHistoryItems(history.pastStudies.slice(0, studyHistoryPageSize))
+    setActiveHistoryPage(0)
+    setPastHistoryPage(0)
+    setHasNextActiveHistoryPage(history.activeStudies.length > studyHistoryPageSize)
+    setHasNextPastHistoryPage(history.pastStudies.length > studyHistoryPageSize)
+  }
+
   async function loadMyStudies(token = accessToken.trim()) {
     if (!token) return null
     try {
       const history = await fetchMyStudies(token)
-      setMyStudyHistory(history)
+      applyMyStudyHistory(history)
       appendLog('내 스터디 이력 동기화')
       return history
     } catch (error) {
       reportRequestError(error, '내 스터디 이력을 불러오지 못했습니다.')
       return null
     }
+  }
+
+  async function loadMyStudyHistoryPage(
+    scope: StudyHistoryScope,
+    keyword = studyHistoryKeyword(scope),
+    page = studyHistoryPage(scope),
+    token = accessToken.trim(),
+  ) {
+    if (!token) return null
+    setIsHistoryListLoading(true)
+    try {
+      const result = await fetchMyStudyPage(token, scope, keyword, page, studyHistoryPageSize)
+      applyStudyHistoryPage(scope, result)
+      return result
+    } catch (error) {
+      reportRequestError(error, '스터디 이력을 불러오지 못했습니다.')
+      return null
+    } finally {
+      setIsHistoryListLoading(false)
+    }
+  }
+
+  async function loadMyStudyHistoryPages(token = accessToken.trim()) {
+    if (!token) return
+    setIsHistoryListLoading(true)
+    try {
+      const [activeResult, pastResult] = await Promise.all([
+        fetchMyStudyPage(token, 'active', activeHistorySearchKeyword, activeHistoryPage, studyHistoryPageSize),
+        fetchMyStudyPage(token, 'past', pastHistorySearchKeyword, pastHistoryPage, studyHistoryPageSize),
+      ])
+      applyStudyHistoryPage('active', activeResult)
+      applyStudyHistoryPage('past', pastResult)
+    } catch (error) {
+      reportRequestError(error, '스터디 이력을 불러오지 못했습니다.')
+    } finally {
+      setIsHistoryListLoading(false)
+    }
+  }
+
+  function applyStudyHistoryPage(scope: StudyHistoryScope, result: PageResponse<StudyItem>) {
+    if (scope === 'active') {
+      setActiveHistoryItems(result.content)
+      setActiveHistoryPage(result.page)
+      setHasNextActiveHistoryPage(result.hasNext)
+      return
+    }
+    setPastHistoryItems(result.content)
+    setPastHistoryPage(result.page)
+    setHasNextPastHistoryPage(result.hasNext)
+  }
+
+  function searchStudyHistory(scope: StudyHistoryScope, keyword: string) {
+    if (scope === 'active') {
+      setActiveHistorySearchKeyword(keyword)
+    } else {
+      setPastHistorySearchKeyword(keyword)
+    }
+    const currentTimer = historySearchTimerRefs.current[scope]
+    if (currentTimer != null) {
+      window.clearTimeout(currentTimer)
+    }
+    historySearchTimerRefs.current[scope] = window.setTimeout(() => {
+      historySearchTimerRefs.current[scope] = null
+      void loadMyStudyHistoryPage(scope, keyword, 0)
+    }, 300)
+  }
+
+  function clearStudyHistorySearch(scope: StudyHistoryScope) {
+    const currentTimer = historySearchTimerRefs.current[scope]
+    if (currentTimer != null) {
+      window.clearTimeout(currentTimer)
+      historySearchTimerRefs.current[scope] = null
+    }
+    if (scope === 'active') {
+      setActiveHistorySearchKeyword('')
+    } else {
+      setPastHistorySearchKeyword('')
+    }
+    void loadMyStudyHistoryPage(scope, '', 0)
+  }
+
+  function moveStudyHistoryPage(scope: StudyHistoryScope, page: number) {
+    void loadMyStudyHistoryPage(scope, studyHistoryKeyword(scope), Math.max(page, 0))
+  }
+
+  function studyHistoryKeyword(scope: StudyHistoryScope) {
+    return scope === 'active' ? activeHistorySearchKeyword : pastHistorySearchKeyword
+  }
+
+  function studyHistoryPage(scope: StudyHistoryScope) {
+    return scope === 'active' ? activeHistoryPage : pastHistoryPage
   }
 
   async function selectStudy(studyId: number) {
@@ -1028,6 +1170,9 @@ function App() {
       await loadStudies()
       await loadChatRooms()
       await loadMyStudies()
+      if (action === 'hideHistory') {
+        await loadMyStudyHistoryPage('past')
+      }
       await loadNotifications()
       if (selectedStudy?.ownedByRequester) {
         await loadStudyJoinRequests(studyId)
@@ -1091,6 +1236,7 @@ function App() {
     try {
       await hideAllStudyHistory(accessToken.trim())
       await loadMyStudies()
+      await loadMyStudyHistoryPage('past', '', 0)
       appendLog('지난 스터디 전체 목록 삭제 완료')
       showToast('success', '지난 스터디 목록을 비웠습니다.')
     } catch (error) {
@@ -1825,6 +1971,7 @@ function App() {
                       setActiveView('mypage')
                       setShowProfileMenu(false)
                       void loadMyStudies()
+                      void loadMyStudyHistoryPages()
                     }}
                   >
                     <User size={15} />
@@ -2683,9 +2830,14 @@ function App() {
                 <span className="eyebrow">Active</span>
                 <h2>참여 중인 스터디</h2>
               </div>
-              <strong className="history-count">{myStudyHistory.activeStudies.length}</strong>
             </div>
-            {renderStudyHistoryList(myStudyHistory.activeStudies, '참여 중인 스터디가 없습니다.', 'active')}
+            {renderStudyHistoryControls('active')}
+            {renderStudyHistoryList(
+              activeHistoryItems,
+              activeHistorySearchKeyword.trim() ? '검색 결과가 없습니다.' : '참여 중인 스터디가 없습니다.',
+              'active',
+            )}
+            {renderStudyHistoryPagination('active')}
           </section>
 
           <section className="history-section" aria-label="지난 스터디">
@@ -2706,12 +2858,66 @@ function App() {
                 )}
               </div>
             </div>
-            {renderStudyHistoryList(myStudyHistory.pastStudies, '지난 참여 이력이 없습니다.', 'past')}
+            {renderStudyHistoryControls('past')}
+            {renderStudyHistoryList(
+              pastHistoryItems,
+              pastHistorySearchKeyword.trim() ? '검색 결과가 없습니다.' : '지난 참여 이력이 없습니다.',
+              'past',
+            )}
+            {renderStudyHistoryPagination('past')}
           </section>
         </div>
 
         {showDevTools && renderActivityPanel()}
       </section>
+    )
+  }
+
+  function renderStudyHistoryControls(scope: StudyHistoryScope) {
+    const keyword = studyHistoryKeyword(scope)
+    const label = scope === 'active' ? '참여 중인 스터디 검색' : '지난 스터디 검색'
+    return (
+      <label className="study-search history-search">
+        <Search size={16} />
+        <input
+          aria-label={label}
+          value={keyword}
+          onChange={(event) => searchStudyHistory(scope, event.target.value)}
+        />
+        {keyword.trim() && (
+          <button
+            aria-label={`${label}어 지우기`}
+            type="button"
+            onClick={() => clearStudyHistorySearch(scope)}
+          >
+            <X size={15} />
+          </button>
+        )}
+      </label>
+    )
+  }
+
+  function renderStudyHistoryPagination(scope: StudyHistoryScope) {
+    const page = studyHistoryPage(scope)
+    const hasNext = scope === 'active' ? hasNextActiveHistoryPage : hasNextPastHistoryPage
+    return (
+      <div className="board-pagination history-pagination" aria-label="스터디 이력 페이지 이동">
+        <button
+          type="button"
+          onClick={() => moveStudyHistoryPage(scope, page - 1)}
+          disabled={isHistoryListLoading || page === 0}
+        >
+          이전
+        </button>
+        <span>{page + 1}</span>
+        <button
+          type="button"
+          onClick={() => moveStudyHistoryPage(scope, page + 1)}
+          disabled={isHistoryListLoading || !hasNext}
+        >
+          다음
+        </button>
+      </div>
     )
   }
 

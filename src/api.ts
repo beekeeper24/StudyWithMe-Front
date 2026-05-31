@@ -14,6 +14,7 @@ import type {
   PostSearchScope,
   PostSortOrder,
   StudyHistory,
+  StudyHistoryScope,
   StudyItem,
   StudyJoinRequest,
 } from './types'
@@ -186,6 +187,21 @@ export async function fetchStudies(
 
 export async function fetchMyStudies(accessToken: string): Promise<StudyHistory> {
   return request<StudyHistory>('/api/v1/studies/me', accessToken)
+}
+
+export async function fetchMyStudyPage(
+  accessToken: string,
+  scope: StudyHistoryScope,
+  keyword = '',
+  page = 0,
+  size = 10,
+): Promise<PageResponse<StudyItem>> {
+  const params = new URLSearchParams()
+  params.set('scope', scope)
+  if (keyword.trim()) params.set('keyword', keyword.trim())
+  params.set('page', String(page))
+  params.set('size', String(size))
+  return request<PageResponse<StudyItem>>(`/api/v1/studies/me?${params.toString()}`, accessToken)
 }
 
 export async function fetchStudy(studyId: number, accessToken?: string): Promise<StudyItem> {
