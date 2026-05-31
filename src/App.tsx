@@ -3001,7 +3001,12 @@ function App() {
                     }}
                   >
                     <span className="board-title-cell">
-                      <strong>{post.title}</strong>
+                      <strong>
+                        <span>{post.title}</span>
+                        {post.commentCount != null && post.commentCount > 0 && (
+                          <em>{post.commentCount}</em>
+                        )}
+                      </strong>
                       <small>{post.content}</small>
                     </span>
                     <span className="board-author">

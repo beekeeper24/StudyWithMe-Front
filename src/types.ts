@@ -106,6 +106,7 @@ export type PostItem = {
   authorProfileImageUrl?: string | null
   ownedByRequester?: boolean
   boardType: PostBoardType
+  commentCount?: number
   title: string
   content: string
   status: string
