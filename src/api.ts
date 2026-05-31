@@ -11,6 +11,7 @@ import type {
   PageResponse,
   PostBoardType,
   PostItem,
+  PostSearchScope,
   StudyHistory,
   StudyItem,
   StudyJoinRequest,
@@ -308,10 +309,12 @@ export async function fetchPosts(
   page = 0,
   size = 20,
   keyword = '',
+  searchScope: PostSearchScope = 'ALL',
 ): Promise<PageResponse<PostItem>> {
   const params = new URLSearchParams()
   if (boardType) params.set('boardType', boardType)
   if (keyword.trim()) params.set('keyword', keyword.trim())
+  params.set('searchScope', searchScope)
   params.set('page', String(page))
   params.set('size', String(size))
   const query = `?${params.toString()}`
