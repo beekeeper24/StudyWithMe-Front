@@ -1784,7 +1784,7 @@ textarea[aria-invalid="true"] {
 
 .board-toolbar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 12px;
   align-items: center;
 }
@@ -1820,6 +1820,29 @@ textarea[aria-invalid="true"] {
 .board-search select:focus-visible {
   border-color: #c7d0da;
   background: #ffffff;
+  transform: translateY(-1px);
+}
+
+.board-sort-select {
+  min-height: 42px;
+  padding: 0 34px 0 13px;
+  border: 1px solid #d8dee5;
+  border-radius: 8px;
+  color: #333d4b;
+  background: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  outline: none;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.board-sort-select:hover,
+.board-sort-select:focus-visible {
+  border-color: #c7d0da;
+  background: #f8fafb;
   transform: translateY(-1px);
 }
 

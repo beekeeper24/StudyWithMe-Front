@@ -12,6 +12,7 @@ import type {
   PostBoardType,
   PostItem,
   PostSearchScope,
+  PostSortOrder,
   StudyHistory,
   StudyItem,
   StudyJoinRequest,
@@ -310,11 +311,13 @@ export async function fetchPosts(
   size = 20,
   keyword = '',
   searchScope: PostSearchScope = 'ALL',
+  sortOrder: PostSortOrder = 'LATEST',
 ): Promise<PageResponse<PostItem>> {
   const params = new URLSearchParams()
   if (boardType) params.set('boardType', boardType)
   if (keyword.trim()) params.set('keyword', keyword.trim())
   params.set('searchScope', searchScope)
+  params.set('sortOrder', sortOrder)
   params.set('page', String(page))
   params.set('size', String(size))
   const query = `?${params.toString()}`
