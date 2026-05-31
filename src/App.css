@@ -1988,10 +1988,20 @@ textarea[aria-invalid="true"] {
 }
 
 .board-title-cell strong em {
-  color: #3182f6;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: #8b95a1;
   font-size: 13px;
   font-style: normal;
-  font-weight: 800;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.board-title-cell strong em svg {
+  color: #9aa3af;
+  stroke-width: 2;
 }
 
 .board-title-cell small {
