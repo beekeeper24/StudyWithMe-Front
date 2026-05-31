@@ -1583,6 +1583,59 @@ textarea[aria-invalid="true"] {
   font-size: 12px;
 }
 
+.study-search {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 12px;
+  margin-bottom: 14px;
+  border: 1px solid #d8dee5;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.study-search svg {
+  color: #8b95a1;
+}
+
+.study-search input {
+  flex: 1;
+  min-width: 0;
+  min-height: 38px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.study-search input:focus {
+  box-shadow: none;
+}
+
+.study-search button {
+  width: 26px;
+  height: 26px;
+  min-height: 0;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  color: #6b7684;
+  background: #f2f4f6;
+  border: 0;
+  border-radius: 50%;
+  transition:
+    transform 160ms ease,
+    background 160ms ease,
+    color 160ms ease;
+}
+
+.study-search button:hover,
+.study-search button:focus-visible {
+  color: #191f28;
+  background: #e5e8eb;
+  transform: translateY(-1px);
+}
+
 .study-card {
   display: grid;
   gap: 16px;

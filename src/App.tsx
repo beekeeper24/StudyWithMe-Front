@@ -231,15 +231,15 @@ const studyListScopes: Array<{ id: StudyListScope; label: string }> = [
   { id: 'active', label: '참여 중' },
 ]
 
-async function fetchVisibleStudies(token?: string) {
+async function fetchVisibleStudies(token?: string, keyword = '') {
   if (token) {
     try {
-      return await fetchStudies(token)
+      return await fetchStudies(token, keyword)
     } catch {
-      return fetchStudies()
+      return fetchStudies(undefined, keyword)
     }
   }
-  return fetchStudies()
+  return fetchStudies(undefined, keyword)
 }
 
 async function fetchVisibleStudy(studyId: number, token?: string) {
@@ -273,6 +273,7 @@ function App() {
   const [studyJoinRequests, setStudyJoinRequests] = useState<StudyJoinRequest[]>([])
   const [studyBoardMode, setStudyBoardMode] = useState<StudyBoardMode>('list')
   const [studyListScope, setStudyListScope] = useState<StudyListScope>('recruiting')
+  const [studySearchKeyword, setStudySearchKeyword] = useState('')
   const [editingStudyId, setEditingStudyId] = useState<number | null>(null)
   const [posts, setPosts] = useState<PostItem[]>([])
   const [selectedPost, setSelectedPost] = useState<PostItem | null>(null)
@@ -317,6 +318,7 @@ function App() {
       : ['프론트가 준비되었습니다.'],
   )
   const clientRef = useRef<Client | null>(null)
+  const studySearchTimerRef = useRef<number | null>(null)
   const postSearchTimerRef = useRef<number | null>(null)
   const postListRequestRef = useRef(0)
 
@@ -332,9 +334,11 @@ function App() {
     [studies],
   )
   const visibleStudyItems = useMemo(() => {
-    if (studyListScope === 'active') return myStudyHistory.activeStudies
+    if (studyListScope === 'active') {
+      return filterStudiesByKeyword(myStudyHistory.activeStudies, studySearchKeyword)
+    }
     return recruitingStudies
-  }, [myStudyHistory.activeStudies, recruitingStudies, studyListScope])
+  }, [myStudyHistory.activeStudies, recruitingStudies, studyListScope, studySearchKeyword])
   const activeRoom = useMemo(
     () => chatRooms.find((room) => String(room.id) === roomId.trim()),
     [chatRooms, roomId],
@@ -408,6 +412,9 @@ function App() {
 
   useEffect(() => {
     return () => {
+      if (studySearchTimerRef.current != null) {
+        window.clearTimeout(studySearchTimerRef.current)
+      }
       if (postSearchTimerRef.current != null) {
         window.clearTimeout(postSearchTimerRef.current)
       }
@@ -610,6 +617,10 @@ function App() {
 
   function clearAuthenticatedState() {
     postListRequestRef.current += 1
+    if (studySearchTimerRef.current != null) {
+      window.clearTimeout(studySearchTimerRef.current)
+      studySearchTimerRef.current = null
+    }
     if (postSearchTimerRef.current != null) {
       window.clearTimeout(postSearchTimerRef.current)
       postSearchTimerRef.current = null
@@ -629,6 +640,7 @@ function App() {
     setStudyForm(emptyStudyForm)
     setStudyFormErrors({})
     setStudyBoardMode('list')
+    setStudySearchKeyword('')
     setPosts([])
     setSelectedPost(null)
     setComments([])
@@ -757,15 +769,39 @@ function App() {
     }
   }
 
-  async function loadStudies() {
+  async function loadStudies(keyword = studySearchKeyword) {
     try {
-      const items = await fetchVisibleStudies(accessToken.trim())
+      const items = await fetchVisibleStudies(accessToken.trim(), keyword)
       setStudies(items)
       setSelectedStudy((current) =>
         current ? (items.find((item) => item.id === current.id) ?? null) : null,
       )
     } catch (error) {
       reportRequestError(error, '스터디 목록을 불러오지 못했습니다.')
+    }
+  }
+
+  function searchStudies(keyword: string) {
+    setStudySearchKeyword(keyword)
+    if (studySearchTimerRef.current != null) {
+      window.clearTimeout(studySearchTimerRef.current)
+    }
+    studySearchTimerRef.current = window.setTimeout(() => {
+      studySearchTimerRef.current = null
+      if (studyListScope === 'recruiting') {
+        void loadStudies(keyword)
+      }
+    }, 300)
+  }
+
+  function clearStudySearch() {
+    if (studySearchTimerRef.current != null) {
+      window.clearTimeout(studySearchTimerRef.current)
+      studySearchTimerRef.current = null
+    }
+    setStudySearchKeyword('')
+    if (studyListScope === 'recruiting') {
+      void loadStudies('')
     }
   }
 
@@ -2026,7 +2062,12 @@ function App() {
                   className={studyListScope === scope.id ? 'active' : ''}
                   key={scope.id}
                   type="button"
-                  onClick={() => setStudyListScope(scope.id)}
+                  onClick={() => {
+                    setStudyListScope(scope.id)
+                    if (scope.id === 'recruiting') {
+                      void loadStudies(studySearchKeyword)
+                    }
+                  }}
                 >
                   {scope.label}
                   <span>{studyScopeCount(scope.id)}</span>
@@ -2034,9 +2075,30 @@ function App() {
               ))}
             </div>
 
+            <label className="study-search">
+              <Search size={16} />
+              <input
+                aria-label="스터디 검색"
+                value={studySearchKeyword}
+                onChange={(event) => searchStudies(event.target.value)}
+              />
+              {studySearchKeyword.trim() && (
+                <button
+                  aria-label="스터디 검색어 지우기"
+                  type="button"
+                  onClick={clearStudySearch}
+                >
+                  <X size={15} />
+                </button>
+              )}
+            </label>
+
             <div className="study-card-grid">
               {visibleStudyItems.length === 0 ? (
-                <EmptyState icon={BookOpen} text={studyScopeEmptyText(studyListScope)} />
+                <EmptyState
+                  icon={BookOpen}
+                  text={studySearchKeyword.trim() ? '검색 결과가 없습니다.' : studyScopeEmptyText(studyListScope)}
+                />
               ) : (
                 visibleStudyItems.map((study) => renderStudyCard(study))
               )}
@@ -3777,6 +3839,23 @@ function studyStatusClassName(status: string) {
 
 function studyOwnerLabel(study: StudyItem) {
   return study.ownerNickname ? `스터디장 ${study.ownerNickname}` : '스터디장'
+}
+
+function filterStudiesByKeyword(studies: StudyItem[], keyword: string) {
+  const normalizedKeyword = keyword.trim().toLowerCase()
+  if (!normalizedKeyword) return studies
+
+  return studies.filter((study) => {
+    const detail = studyDetail(study)
+    return [
+      study.title,
+      study.description,
+      detail.progressMethod,
+      detail.targetAudience,
+      detail.schedule,
+      study.ownerNickname ?? '',
+    ].some((value) => value.toLowerCase().includes(normalizedKeyword))
+  })
 }
 
 function authorDisplayName(item: PostItem | CommentItem) {
