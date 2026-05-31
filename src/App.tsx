@@ -125,6 +125,7 @@ function communityBoardId(boardType: PostBoardType): CommunityBoardId {
 }
 
 const postPageSize = 20
+const studyPageSize = 20
 const postSearchScopes: Array<{ value: PostSearchScope; label: string }> = [
   { value: 'ALL', label: '전체' },
   { value: 'TITLE', label: '제목' },
@@ -231,15 +232,15 @@ const studyListScopes: Array<{ id: StudyListScope; label: string }> = [
   { id: 'active', label: '참여 중' },
 ]
 
-async function fetchVisibleStudies(token?: string, keyword = '') {
+async function fetchVisibleStudies(token?: string, keyword = '', page = 0) {
   if (token) {
     try {
-      return await fetchStudies(token, keyword)
+      return await fetchStudies(token, keyword, page, studyPageSize)
     } catch {
-      return fetchStudies(undefined, keyword)
+      return fetchStudies(undefined, keyword, page, studyPageSize)
     }
   }
-  return fetchStudies(undefined, keyword)
+  return fetchStudies(undefined, keyword, page, studyPageSize)
 }
 
 async function fetchVisibleStudy(studyId: number, token?: string) {
@@ -274,6 +275,9 @@ function App() {
   const [studyBoardMode, setStudyBoardMode] = useState<StudyBoardMode>('list')
   const [studyListScope, setStudyListScope] = useState<StudyListScope>('recruiting')
   const [studySearchKeyword, setStudySearchKeyword] = useState('')
+  const [studyPage, setStudyPage] = useState(0)
+  const [hasNextStudyPage, setHasNextStudyPage] = useState(false)
+  const [isStudyListLoading, setIsStudyListLoading] = useState(false)
   const [editingStudyId, setEditingStudyId] = useState<number | null>(null)
   const [posts, setPosts] = useState<PostItem[]>([])
   const [selectedPost, setSelectedPost] = useState<PostItem | null>(null)
@@ -333,12 +337,18 @@ function App() {
     () => studies.filter((study) => isStudyRecruiting(study.status)),
     [studies],
   )
+  const filteredActiveStudies = useMemo(
+    () => filterStudiesByKeyword(myStudyHistory.activeStudies, studySearchKeyword),
+    [myStudyHistory.activeStudies, studySearchKeyword],
+  )
+  const activeStudyPageItems = useMemo(
+    () => filteredActiveStudies.slice(studyPage * studyPageSize, (studyPage + 1) * studyPageSize),
+    [filteredActiveStudies, studyPage],
+  )
   const visibleStudyItems = useMemo(() => {
-    if (studyListScope === 'active') {
-      return filterStudiesByKeyword(myStudyHistory.activeStudies, studySearchKeyword)
-    }
+    if (studyListScope === 'active') return activeStudyPageItems
     return recruitingStudies
-  }, [myStudyHistory.activeStudies, recruitingStudies, studyListScope, studySearchKeyword])
+  }, [activeStudyPageItems, recruitingStudies, studyListScope])
   const activeRoom = useMemo(
     () => chatRooms.find((room) => String(room.id) === roomId.trim()),
     [chatRooms, roomId],
@@ -432,7 +442,9 @@ function App() {
           fetchPosts(accessToken.trim(), 'FREE'),
         ])
         if (cancelled) return
-        setStudies(studyItems)
+        setStudies(studyItems.content)
+        setStudyPage(studyItems.page)
+        setHasNextStudyPage(studyItems.hasNext)
         setPosts(postPageResult.content)
         setPostPage(postPageResult.page)
         setHasNextPostPage(postPageResult.hasNext)
@@ -635,6 +647,9 @@ function App() {
     setChatMembers([])
     setStudies([])
     setMyStudyHistory(emptyStudyHistory)
+    setStudyPage(0)
+    setHasNextStudyPage(false)
+    setIsStudyListLoading(false)
     setSelectedStudy(null)
     setEditingStudyId(null)
     setStudyForm(emptyStudyForm)
@@ -769,15 +784,20 @@ function App() {
     }
   }
 
-  async function loadStudies(keyword = studySearchKeyword) {
+  async function loadStudies(keyword = studySearchKeyword, page = studyPage) {
+    setIsStudyListLoading(true)
     try {
-      const items = await fetchVisibleStudies(accessToken.trim(), keyword)
-      setStudies(items)
+      const result = await fetchVisibleStudies(accessToken.trim(), keyword, page)
+      setStudies(result.content)
+      setStudyPage(result.page)
+      setHasNextStudyPage(result.hasNext)
       setSelectedStudy((current) =>
-        current ? (items.find((item) => item.id === current.id) ?? null) : null,
+        current ? (result.content.find((item) => item.id === current.id) ?? null) : null,
       )
     } catch (error) {
       reportRequestError(error, '스터디 목록을 불러오지 못했습니다.')
+    } finally {
+      setIsStudyListLoading(false)
     }
   }
 
@@ -789,7 +809,9 @@ function App() {
     studySearchTimerRef.current = window.setTimeout(() => {
       studySearchTimerRef.current = null
       if (studyListScope === 'recruiting') {
-        void loadStudies(keyword)
+        void loadStudies(keyword, 0)
+      } else {
+        setStudyPage(0)
       }
     }, 300)
   }
@@ -801,8 +823,20 @@ function App() {
     }
     setStudySearchKeyword('')
     if (studyListScope === 'recruiting') {
-      void loadStudies('')
+      void loadStudies('', 0)
+    } else {
+      setStudyPage(0)
     }
+  }
+
+  function moveStudyPage(page: number) {
+    const nextPage = Math.max(page, 0)
+    setSelectedStudy(null)
+    if (studyListScope === 'active') {
+      setStudyPage(nextPage)
+      return
+    }
+    void loadStudies(studySearchKeyword, nextPage)
   }
 
   async function loadMyStudies(token = accessToken.trim()) {
@@ -2064,13 +2098,14 @@ function App() {
                   type="button"
                   onClick={() => {
                     setStudyListScope(scope.id)
+                    setStudyPage(0)
+                    setSelectedStudy(null)
                     if (scope.id === 'recruiting') {
-                      void loadStudies(studySearchKeyword)
+                      void loadStudies(studySearchKeyword, 0)
                     }
                   }}
                 >
                   {scope.label}
-                  <span>{studyScopeCount(scope.id)}</span>
                 </button>
               ))}
             </div>
@@ -2102,6 +2137,31 @@ function App() {
               ) : (
                 visibleStudyItems.map((study) => renderStudyCard(study))
               )}
+            </div>
+
+            <div className="board-pagination" aria-label="스터디 페이지 이동">
+              <button
+                type="button"
+                onClick={() => moveStudyPage(studyPage - 1)}
+                disabled={isStudyListLoading || studyPage === 0}
+              >
+                이전
+              </button>
+              <span>{studyPage + 1}</span>
+              <button
+                type="button"
+                onClick={() => moveStudyPage(studyPage + 1)}
+                disabled={
+                  isStudyListLoading
+                  || (
+                    studyListScope === 'active'
+                      ? (studyPage + 1) * studyPageSize >= filteredActiveStudies.length
+                      : !hasNextStudyPage
+                  )
+                }
+              >
+                다음
+              </button>
             </div>
           </>
         )}
@@ -2255,11 +2315,6 @@ function App() {
         {showDevTools && renderActivityPanel()}
       </section>
     )
-  }
-
-  function studyScopeCount(scope: StudyListScope) {
-    if (scope === 'active') return myStudyHistory.activeStudies.length
-    return recruitingStudies.length
   }
 
   function studyScopeEmptyText(scope: StudyListScope) {

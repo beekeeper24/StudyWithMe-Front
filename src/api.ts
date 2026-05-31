@@ -171,11 +171,17 @@ export async function fetchChatRoomMembers(
   return request<ChatRoomMember[]>(`/api/v1/chat/rooms/${roomId}/members`, accessToken)
 }
 
-export async function fetchStudies(accessToken?: string, keyword = ''): Promise<StudyItem[]> {
+export async function fetchStudies(
+  accessToken?: string,
+  keyword = '',
+  page = 0,
+  size = 20,
+): Promise<PageResponse<StudyItem>> {
   const params = new URLSearchParams()
   if (keyword.trim()) params.set('keyword', keyword.trim())
-  const query = params.toString() ? `?${params.toString()}` : ''
-  return request<StudyItem[]>(`/api/v1/studies${query}`, accessToken)
+  params.set('page', String(page))
+  params.set('size', String(size))
+  return request<PageResponse<StudyItem>>(`/api/v1/studies?${params.toString()}`, accessToken)
 }
 
 export async function fetchMyStudies(accessToken: string): Promise<StudyHistory> {
