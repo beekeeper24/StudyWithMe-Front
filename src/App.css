@@ -1794,6 +1794,11 @@ textarea[aria-invalid="true"] {
   font-size: 13px;
 }
 
+.board-toolbar > span.loading {
+  color: #24272d;
+  font-weight: 700;
+}
+
 .board-search {
   min-height: 42px;
   display: flex;
@@ -1810,6 +1815,8 @@ textarea[aria-invalid="true"] {
 }
 
 .board-search input {
+  flex: 1;
+  min-width: 0;
   min-height: 38px;
   padding: 0;
   border: 0;
@@ -1820,11 +1827,40 @@ textarea[aria-invalid="true"] {
   box-shadow: none;
 }
 
+.board-search-clear {
+  width: 26px;
+  height: 26px;
+  min-height: 0;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  color: #6b7684;
+  background: #f2f4f6;
+  border: 0;
+  border-radius: 50%;
+  transition:
+    transform 160ms ease,
+    background 160ms ease,
+    color 160ms ease;
+}
+
+.board-search-clear:hover,
+.board-search-clear:focus-visible {
+  color: #191f28;
+  background: #e5e8eb;
+  transform: translateY(-1px);
+}
+
 .board-list {
   display: grid;
   overflow: hidden;
   border: 1px solid #e5e8eb;
   border-radius: 8px;
+}
+
+.board-list.is-loading {
+  opacity: 0.72;
+  pointer-events: none;
 }
 
 .board-pagination {

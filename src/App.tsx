@@ -271,6 +271,7 @@ function App() {
   const [postTotalElements, setPostTotalElements] = useState(0)
   const [hasNextPostPage, setHasNextPostPage] = useState(false)
   const [postSearchKeyword, setPostSearchKeyword] = useState('')
+  const [isPostListLoading, setIsPostListLoading] = useState(false)
   const [comments, setComments] = useState<CommentItem[]>([])
   const [studyForm, setStudyForm] = useState(emptyStudyForm)
   const [studyFormErrors, setStudyFormErrors] = useState<StudyFormErrors>({})
@@ -303,6 +304,7 @@ function App() {
   )
   const clientRef = useRef<Client | null>(null)
   const postSearchTimerRef = useRef<number | null>(null)
+  const postListRequestRef = useRef(0)
 
   const canConnect = accessToken.trim().length > 0
   const needsSignup = profile?.signupRequired === true
@@ -594,6 +596,11 @@ function App() {
   }
 
   function clearAuthenticatedState() {
+    postListRequestRef.current += 1
+    if (postSearchTimerRef.current != null) {
+      window.clearTimeout(postSearchTimerRef.current)
+      postSearchTimerRef.current = null
+    }
     disconnectRealtime()
     setAccessToken('')
     setTokenExpiresAt(null)
@@ -617,6 +624,7 @@ function App() {
     setPostTotalElements(0)
     setHasNextPostPage(false)
     setPostSearchKeyword('')
+    setIsPostListLoading(false)
     setEditingCommentId(null)
     setCommentEditText('')
     setShowNotificationMenu(false)
@@ -1187,11 +1195,23 @@ function App() {
     }, 300)
   }
 
+  function clearPostSearch() {
+    if (postSearchTimerRef.current != null) {
+      window.clearTimeout(postSearchTimerRef.current)
+      postSearchTimerRef.current = null
+    }
+    setPostSearchKeyword('')
+    void loadPosts(selectedCommunityBoard, 0, '')
+  }
+
   async function loadPosts(
     boardId: CommunityBoardId = selectedCommunityBoard,
     page = postPage,
     keyword = postSearchKeyword,
   ) {
+    const requestId = postListRequestRef.current + 1
+    postListRequestRef.current = requestId
+    setIsPostListLoading(true)
     try {
       const pageResult = await fetchPosts(
         accessToken.trim(),
@@ -1200,12 +1220,18 @@ function App() {
         postPageSize,
         keyword,
       )
+      if (postListRequestRef.current !== requestId) return
       setPosts(pageResult.content)
       setPostPage(pageResult.page)
       setPostTotalElements(pageResult.totalElements)
       setHasNextPostPage(pageResult.hasNext)
     } catch (error) {
+      if (postListRequestRef.current !== requestId) return
       reportRequestError(error, '커뮤니티 글을 불러오지 못했습니다.')
+    } finally {
+      if (postListRequestRef.current === requestId) {
+        setIsPostListLoading(false)
+      }
     }
   }
 
@@ -2878,13 +2904,27 @@ function App() {
                   onChange={(event) => searchPosts(event.target.value)}
                   placeholder="검색"
                 />
+                {postSearchKeyword.trim() && (
+                  <button
+                    aria-label="검색어 지우기"
+                    className="board-search-clear"
+                    type="button"
+                    onClick={clearPostSearch}
+                  >
+                    <X size={15} />
+                  </button>
+                )}
               </label>
-              <span>
-                {postPage + 1}페이지 · {postTotalElements}개
+              <span className={isPostListLoading ? 'loading' : ''}>
+                {isPostListLoading ? '검색 중' : `${postPage + 1}페이지 · ${postTotalElements}개`}
               </span>
             </div>
 
-            <div className="board-list" aria-label="게시글 목록">
+            <div
+              className={`board-list ${isPostListLoading ? 'is-loading' : ''}`}
+              aria-busy={isPostListLoading}
+              aria-label="게시글 목록"
+            >
               <div className="board-list-head" aria-hidden="true">
                 <span>제목</span>
                 <span>작성자</span>
@@ -2924,7 +2964,7 @@ function App() {
               <button
                 type="button"
                 onClick={() => loadPosts(selectedCommunityBoard, Math.max(postPage - 1, 0))}
-                disabled={postPage === 0}
+                disabled={isPostListLoading || postPage === 0}
               >
                 이전
               </button>
@@ -2932,7 +2972,7 @@ function App() {
               <button
                 type="button"
                 onClick={() => loadPosts(selectedCommunityBoard, postPage + 1)}
-                disabled={!hasNextPostPage}
+                disabled={isPostListLoading || !hasNextPostPage}
               >
                 다음
               </button>
