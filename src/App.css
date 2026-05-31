@@ -1974,6 +1974,26 @@ textarea[aria-invalid="true"] {
   min-width: 0;
 }
 
+.board-title-cell strong {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.board-title-cell strong span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board-title-cell strong em {
+  color: #3182f6;
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 800;
+}
+
 .board-title-cell small {
   overflow: hidden;
   color: #6b7684;
