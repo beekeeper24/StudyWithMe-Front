@@ -85,6 +85,7 @@ export type StudyItem = {
   targetAudience?: string | null
   rules?: string | null
   capacity?: number | null
+  joinedMemberCount?: number
   schedule?: string | null
   status: string
   joinedByRequester?: boolean

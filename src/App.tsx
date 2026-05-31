@@ -2356,7 +2356,7 @@ function App() {
           </div>
           <div>
             <dt>정원</dt>
-            <dd>{detail.capacity}</dd>
+            <dd>{studyParticipationLabel(study)}</dd>
           </div>
         </dl>
         <div className="study-card-actions">
@@ -2496,7 +2496,8 @@ function App() {
             <dl className="study-detail-list">
               {renderStudyDetail('진행 방식', studyDetail(selectedStudy).progressMethod)}
               {renderStudyDetail('모집 대상', studyDetail(selectedStudy).targetAudience)}
-              {renderStudyDetail('정원', studyDetail(selectedStudy).capacity)}
+              {renderStudyDetail('참여 인원', studyParticipationLabel(selectedStudy))}
+              {renderStudyDetail('남은 자리', studyRemainingSeatLabel(selectedStudy))}
               {renderStudyDetail('일정', studyDetail(selectedStudy).schedule)}
               {renderStudyDetail('규칙', studyDetail(selectedStudy).rules)}
             </dl>
@@ -3970,6 +3971,19 @@ function studyDetail(study: StudyItem) {
     capacity: study.capacity != null ? `${study.capacity}명` : '협의',
     schedule: study.schedule?.trim() || '협의',
   }
+}
+
+function studyParticipationLabel(study: StudyItem) {
+  const joinedCount = study.joinedMemberCount ?? 0
+  if (study.capacity == null) return `${joinedCount}명 / 정원 협의`
+  return `${joinedCount}명 / ${study.capacity}명`
+}
+
+function studyRemainingSeatLabel(study: StudyItem) {
+  if (study.capacity == null) return '협의'
+  const joinedCount = study.joinedMemberCount ?? 0
+  const remainingSeats = Math.max(study.capacity - joinedCount, 0)
+  return remainingSeats > 0 ? `${remainingSeats}명` : '마감'
 }
 
 function chatRoomTitle(room: ChatRoom, studies: StudyItem[]) {
