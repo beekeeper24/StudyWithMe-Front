@@ -14,6 +14,7 @@ import {
   LogIn,
   LogOut,
   MessageSquareText,
+  MessageCircle,
   Newspaper,
   PanelLeftClose,
   PanelLeftOpen,
@@ -3004,7 +3005,10 @@ function App() {
                       <strong>
                         <span>{post.title}</span>
                         {post.commentCount != null && post.commentCount > 0 && (
-                          <em>{post.commentCount}</em>
+                          <em aria-label={`댓글 ${post.commentCount}개`}>
+                            <MessageCircle size={13} />
+                            {post.commentCount}
+                          </em>
                         )}
                       </strong>
                       <small>{post.content}</small>
