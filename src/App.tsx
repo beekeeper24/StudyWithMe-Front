@@ -1054,6 +1054,19 @@ function App() {
       return
     }
 
+    if (item.targetType === 'COMMENT') {
+      if (!item.targetPostId) {
+        showToast('error', '연결된 글을 찾지 못했습니다.')
+        return
+      }
+      setActiveView('posts')
+      setEditingPostId(null)
+      setPostForm(emptyPostForm)
+      setPostSearchKeyword('')
+      await selectPost(item.targetPostId)
+      return
+    }
+
     if (item.targetType !== 'STUDY') {
       return
     }
