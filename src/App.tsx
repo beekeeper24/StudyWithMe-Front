@@ -268,6 +268,7 @@ function App() {
   const [selectedCommunityBoard, setSelectedCommunityBoard] =
     useState<CommunityBoardId>('free')
   const [postPage, setPostPage] = useState(0)
+  const [postTotalElements, setPostTotalElements] = useState(0)
   const [hasNextPostPage, setHasNextPostPage] = useState(false)
   const [postSearchKeyword, setPostSearchKeyword] = useState('')
   const [comments, setComments] = useState<CommentItem[]>([])
@@ -401,13 +402,16 @@ function App() {
 
     async function loadInitialContent() {
       try {
-        const [studyItems, postItems] = await Promise.all([
+        const [studyItems, postPageResult] = await Promise.all([
           fetchVisibleStudies(accessToken.trim()),
           fetchPosts(accessToken.trim(), 'FREE'),
         ])
         if (cancelled) return
         setStudies(studyItems)
-        setPosts(postItems)
+        setPosts(postPageResult.content)
+        setPostPage(postPageResult.page)
+        setPostTotalElements(postPageResult.totalElements)
+        setHasNextPostPage(postPageResult.hasNext)
       } catch (error) {
         const message = errorMessage(error, '데이터를 불러오지 못했습니다.')
         appendLog(message)
@@ -607,6 +611,9 @@ function App() {
     setSelectedPost(null)
     setComments([])
     setPostBoardMode('list')
+    setPostPage(0)
+    setPostTotalElements(0)
+    setHasNextPostPage(false)
     setPostSearchKeyword('')
     setEditingCommentId(null)
     setCommentEditText('')
@@ -1172,15 +1179,16 @@ function App() {
     page = postPage,
   ) {
     try {
-      const items = await fetchPosts(
+      const pageResult = await fetchPosts(
         accessToken.trim(),
         communityBoardType(boardId),
         page,
         postPageSize,
       )
-      setPosts(items)
-      setPostPage(page)
-      setHasNextPostPage(items.length === postPageSize)
+      setPosts(pageResult.content)
+      setPostPage(pageResult.page)
+      setPostTotalElements(pageResult.totalElements)
+      setHasNextPostPage(pageResult.hasNext)
     } catch (error) {
       reportRequestError(error, '커뮤니티 글을 불러오지 못했습니다.')
     }
@@ -2856,7 +2864,12 @@ function App() {
                   placeholder="검색"
                 />
               </label>
-              <span>{postPage + 1}페이지 · {filteredPosts.length}개</span>
+              <span>
+                {postPage + 1}페이지 ·{' '}
+                {postSearchKeyword.trim()
+                  ? `${filteredPosts.length}/${postTotalElements}개`
+                  : `${postTotalElements}개`}
+              </span>
             </div>
 
             <div className="board-list" aria-label="게시글 목록">

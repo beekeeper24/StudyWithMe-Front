@@ -109,6 +109,16 @@ export type PostItem = {
   updatedAt?: string
 }
 
+export type PageResponse<T> = {
+  content: T[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+  hasNext: boolean
+  hasPrevious: boolean
+}
+
 export type CommentItem = {
   id: number
   postId: number

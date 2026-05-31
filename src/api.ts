@@ -8,6 +8,7 @@ import type {
   ChatRoomMember,
   NotificationItem,
   OAuthProvider,
+  PageResponse,
   PostBoardType,
   PostItem,
   StudyHistory,
@@ -306,13 +307,13 @@ export async function fetchPosts(
   boardType?: PostBoardType,
   page = 0,
   size = 20,
-): Promise<PostItem[]> {
+): Promise<PageResponse<PostItem>> {
   const params = new URLSearchParams()
   if (boardType) params.set('boardType', boardType)
   params.set('page', String(page))
   params.set('size', String(size))
   const query = `?${params.toString()}`
-  return request<PostItem[]>(`/api/v1/posts${query}`, accessToken)
+  return request<PageResponse<PostItem>>(`/api/v1/posts${query}`, accessToken)
 }
 
 export async function fetchPost(postId: number, accessToken?: string): Promise<PostItem> {
