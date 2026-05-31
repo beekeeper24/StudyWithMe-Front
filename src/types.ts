@@ -6,6 +6,8 @@ export type WorkspaceView = 'lobby' | 'studies' | 'posts' | 'chat' | 'mypage'
 
 export type PostBoardType = 'FREE' | 'QUESTION' | 'REVIEW' | 'NOTICE'
 
+export type PostSearchScope = 'ALL' | 'TITLE' | 'TITLE_CONTENT' | 'AUTHOR'
+
 export type AccessTokenResponse = {
   accessToken: string
   accessTokenExpiresAt: string

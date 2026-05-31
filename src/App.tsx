@@ -91,6 +91,7 @@ import type {
   OAuthProvider,
   PostBoardType,
   PostItem,
+  PostSearchScope,
   StudyHistory,
   StudyItem,
   StudyJoinRequest,
@@ -122,6 +123,12 @@ function communityBoardId(boardType: PostBoardType): CommunityBoardId {
 }
 
 const postPageSize = 20
+const postSearchScopes: Array<{ value: PostSearchScope; label: string; placeholder: string }> = [
+  { value: 'ALL', label: '전체', placeholder: '제목, 내용, 작성자 검색' },
+  { value: 'TITLE', label: '제목', placeholder: '제목 검색' },
+  { value: 'TITLE_CONTENT', label: '제목+내용', placeholder: '제목 또는 내용 검색' },
+  { value: 'AUTHOR', label: '작성자', placeholder: '작성자 검색' },
+]
 const lobbySlideCount = 3
 
 type CommunityRoute = {
@@ -268,9 +275,9 @@ function App() {
   const [selectedCommunityBoard, setSelectedCommunityBoard] =
     useState<CommunityBoardId>('free')
   const [postPage, setPostPage] = useState(0)
-  const [postTotalElements, setPostTotalElements] = useState(0)
   const [hasNextPostPage, setHasNextPostPage] = useState(false)
   const [postSearchKeyword, setPostSearchKeyword] = useState('')
+  const [postSearchScope, setPostSearchScope] = useState<PostSearchScope>('ALL')
   const [isPostListLoading, setIsPostListLoading] = useState(false)
   const [comments, setComments] = useState<CommentItem[]>([])
   const [studyForm, setStudyForm] = useState(emptyStudyForm)
@@ -414,7 +421,6 @@ function App() {
         setStudies(studyItems)
         setPosts(postPageResult.content)
         setPostPage(postPageResult.page)
-        setPostTotalElements(postPageResult.totalElements)
         setHasNextPostPage(postPageResult.hasNext)
       } catch (error) {
         const message = errorMessage(error, '데이터를 불러오지 못했습니다.')
@@ -621,7 +627,6 @@ function App() {
     setComments([])
     setPostBoardMode('list')
     setPostPage(0)
-    setPostTotalElements(0)
     setHasNextPostPage(false)
     setPostSearchKeyword('')
     setIsPostListLoading(false)
@@ -1191,8 +1196,17 @@ function App() {
     }
     postSearchTimerRef.current = window.setTimeout(() => {
       postSearchTimerRef.current = null
-      void loadPosts(selectedCommunityBoard, 0, keyword)
+      void loadPosts(selectedCommunityBoard, 0, keyword, postSearchScope)
     }, 300)
+  }
+
+  function changePostSearchScope(searchScope: PostSearchScope) {
+    setPostSearchScope(searchScope)
+    if (postSearchTimerRef.current != null) {
+      window.clearTimeout(postSearchTimerRef.current)
+      postSearchTimerRef.current = null
+    }
+    void loadPosts(selectedCommunityBoard, 0, postSearchKeyword, searchScope)
   }
 
   function clearPostSearch() {
@@ -1201,13 +1215,14 @@ function App() {
       postSearchTimerRef.current = null
     }
     setPostSearchKeyword('')
-    void loadPosts(selectedCommunityBoard, 0, '')
+    void loadPosts(selectedCommunityBoard, 0, '', postSearchScope)
   }
 
   async function loadPosts(
     boardId: CommunityBoardId = selectedCommunityBoard,
     page = postPage,
     keyword = postSearchKeyword,
+    searchScope = postSearchScope,
   ) {
     const requestId = postListRequestRef.current + 1
     postListRequestRef.current = requestId
@@ -1219,11 +1234,11 @@ function App() {
         page,
         postPageSize,
         keyword,
+        searchScope,
       )
       if (postListRequestRef.current !== requestId) return
       setPosts(pageResult.content)
       setPostPage(pageResult.page)
-      setPostTotalElements(pageResult.totalElements)
       setHasNextPostPage(pageResult.hasNext)
     } catch (error) {
       if (postListRequestRef.current !== requestId) return
@@ -2851,6 +2866,8 @@ function App() {
   function renderPosts() {
     const selectedBoard = communityBoards.find((board) => board.id === selectedCommunityBoard)
     const selectedBoardLabel = selectedBoard?.label ?? '자유게시판'
+    const selectedSearchScope =
+      postSearchScopes.find((scope) => scope.value === postSearchScope) ?? postSearchScopes[0]
     const canWriteSelectedBoard = selectedBoard?.boardType !== 'NOTICE' || isAdmin
     const canManageSelectedPost =
       selectedPost != null &&
@@ -2898,11 +2915,22 @@ function App() {
           <div className="community-list-surface">
             <div className="board-toolbar">
               <label className="board-search">
+                <select
+                  aria-label="검색 범위"
+                  value={postSearchScope}
+                  onChange={(event) => changePostSearchScope(event.target.value as PostSearchScope)}
+                >
+                  {postSearchScopes.map((scope) => (
+                    <option key={scope.value} value={scope.value}>
+                      {scope.label}
+                    </option>
+                  ))}
+                </select>
                 <Search size={16} />
                 <input
                   value={postSearchKeyword}
                   onChange={(event) => searchPosts(event.target.value)}
-                  placeholder="제목, 내용, 작성자 검색"
+                  placeholder={selectedSearchScope.placeholder}
                 />
                 {postSearchKeyword.trim() && (
                   <button
@@ -2915,9 +2943,6 @@ function App() {
                   </button>
                 )}
               </label>
-              <span className={isPostListLoading ? 'loading' : ''}>
-                {isPostListLoading ? '검색 중' : `${postPage + 1}페이지 · ${postTotalElements}개`}
-              </span>
             </div>
 
             <div
