@@ -4090,11 +4090,8 @@ function filterStudiesByKeyword(studies: StudyItem[], keyword: string) {
     const detail = studyDetail(study)
     return [
       study.title,
-      study.description,
-      detail.progressMethod,
-      detail.targetAudience,
-      detail.schedule,
       study.ownerNickname ?? '',
+      detail.schedule,
     ].some((value) => value.toLowerCase().includes(normalizedKeyword))
   })
 }
