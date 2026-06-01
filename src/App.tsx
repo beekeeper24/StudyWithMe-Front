@@ -130,6 +130,7 @@ function communityBoardId(boardType: PostBoardType): CommunityBoardId {
 const postPageSize = 20
 const studyPageSize = 20
 const studyHistoryPageSize = 10
+const notificationCatchupIntervalMs = 60_000
 const postSearchScopes: Array<{ value: PostSearchScope; label: string }> = [
   { value: 'ALL', label: '전체' },
   { value: 'TITLE', label: '제목' },
@@ -432,6 +433,43 @@ function App() {
     const timer = window.setTimeout(() => setToast(null), 4200)
     return () => window.clearTimeout(timer)
   }, [toast])
+
+  useEffect(() => {
+    if (!canConnect || needsSignup) return undefined
+    let cancelled = false
+
+    async function syncNotificationsSilently() {
+      try {
+        const items = await fetchNotifications(accessToken.trim())
+        if (!cancelled) {
+          setNotifications(items)
+        }
+      } catch {
+        // Background catch-up is best-effort; direct user actions still surface errors.
+      }
+    }
+
+    function syncWhenVisible() {
+      if (document.visibilityState === 'visible') {
+        void syncNotificationsSilently()
+      }
+    }
+
+    function syncOnFocus() {
+      void syncNotificationsSilently()
+    }
+
+    const timer = window.setInterval(syncNotificationsSilently, notificationCatchupIntervalMs)
+    document.addEventListener('visibilitychange', syncWhenVisible)
+    window.addEventListener('focus', syncOnFocus)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', syncWhenVisible)
+      window.removeEventListener('focus', syncOnFocus)
+    }
+  }, [accessToken, canConnect, needsSignup])
 
   useEffect(() => {
     const historySearchTimer = historySearchTimerRef
