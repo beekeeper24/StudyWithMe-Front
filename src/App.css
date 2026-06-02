@@ -239,8 +239,7 @@
 }
 
 .sidebar.collapsed .brand > div:nth-child(2),
-.sidebar.collapsed .nav-item span,
-.sidebar.collapsed .sidebar-footer {
+.sidebar.collapsed .nav-item span {
   display: none;
 }
 
@@ -280,7 +279,6 @@
 .profile-row span,
 .message-meta span,
 .notice-row span,
-.sidebar-footer,
 .row-meta,
 .comment-row span,
 .board-row span,
@@ -336,17 +334,6 @@ button:hover:not(:disabled) {
   color: #191f28;
 }
 
-.sidebar-footer {
-  margin-top: auto;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  padding: 12px;
-  border-radius: 12px;
-  background: #f7f8fa;
-  overflow-wrap: anywhere;
-}
-
 .workspace {
   min-width: 0;
   min-height: 100vh;
@@ -391,7 +378,6 @@ button:hover:not(:disabled) {
 
 .notification-button:hover,
 .profile-button:hover,
-.dev-toggle-button:hover,
 .icon-text-button:hover {
   background: #e9ecef;
 }
@@ -567,7 +553,6 @@ h2 {
   letter-spacing: 0;
 }
 
-.status-pill,
 .metric,
 .state-chip {
   display: inline-flex;
@@ -578,31 +563,6 @@ h2 {
   font-size: 13px;
   font-weight: 800;
   white-space: nowrap;
-}
-
-.status-pill {
-  background: #eef6ff;
-  color: #3182f6;
-}
-
-.status-pill.connected {
-  background: #e8f7ef;
-  color: #00a661;
-}
-
-.status-pill.error {
-  background: #fff1f1;
-  color: #f04452;
-}
-
-.status-pill.connecting {
-  background: #fff7e6;
-  color: #b7791f;
-}
-
-.status-pill.compact {
-  padding: 6px 10px;
-  font-size: 12px;
 }
 
 .state-chip {
@@ -625,18 +585,15 @@ h2 {
 }
 
 .auth-strip,
-.control-strip,
 .main-column,
 .profile-panel,
-.notification-panel,
-.activity-panel {
+.notification-panel {
   background: #ffffff;
   border: 1px solid #e5e8eb;
   border-radius: 14px;
 }
 
-.auth-strip,
-.control-strip {
+.auth-strip {
   padding: 16px;
   gap: 12px;
   margin-bottom: 16px;
@@ -671,14 +628,12 @@ h2 {
 .row-actions button,
 .icon-text-button,
 .icon-button,
-.dev-toggle-button,
 .post-actions button {
   padding: 0 13px;
   color: #4e5968;
   background: #f2f4f6;
 }
 
-.dev-toggle-button,
 .icon-button {
   width: 40px;
   padding: 0;
@@ -711,7 +666,6 @@ h2 {
 .row-actions button:hover:not(:disabled),
 .icon-text-button:hover:not(:disabled),
 .icon-button:hover:not(:disabled),
-.dev-toggle-button:hover:not(:disabled),
 .post-actions button:hover:not(:disabled),
 .study-card-actions button:hover:not(:disabled),
 .detail-actions button:hover:not(:disabled),
@@ -740,12 +694,6 @@ label span {
   color: #6b7684;
   font-size: 12px;
   font-weight: 800;
-}
-
-.dev-note {
-  color: #8b95a1;
-  font-size: 12px;
-  font-style: normal;
 }
 
 input,
@@ -2516,8 +2464,7 @@ textarea[aria-invalid="true"] {
 }
 
 .profile-panel,
-.notification-panel,
-.activity-panel {
+.notification-panel {
   padding: 16px;
 }
 
@@ -2618,28 +2565,6 @@ textarea[aria-invalid="true"] {
   color: #8b95a1;
   font-size: 14px;
   line-height: 1.5;
-}
-
-.activity-panel ul {
-  list-style: none;
-  display: grid;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-}
-
-.activity-panel li {
-  display: flex;
-  gap: 8px;
-  color: #4e5968;
-  font-size: 13px;
-  line-height: 1.45;
-}
-
-.activity-panel svg {
-  color: #8b95a1;
-  flex: 0 0 auto;
-  margin-top: 2px;
 }
 
 .toast {
@@ -2828,12 +2753,7 @@ textarea[aria-invalid="true"] {
     margin-top: 0;
   }
 
-  .sidebar-footer {
-    display: none;
-  }
-
-  .auth-strip,
-  .control-strip {
+  .auth-strip {
     display: grid;
     grid-template-columns: 1fr;
     align-items: flex-start;
