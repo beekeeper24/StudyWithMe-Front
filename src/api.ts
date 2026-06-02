@@ -173,7 +173,7 @@ export async function fetchChatRoomMembers(
 }
 
 export async function fetchStudies(
-  accessToken?: string,
+  accessToken: string,
   keyword = '',
   page = 0,
   size = 20,
@@ -204,7 +204,7 @@ export async function fetchMyStudyPage(
   return request<PageResponse<StudyItem>>(`/api/v1/studies/me?${params.toString()}`, accessToken)
 }
 
-export async function fetchStudy(studyId: number, accessToken?: string): Promise<StudyItem> {
+export async function fetchStudy(studyId: number, accessToken: string): Promise<StudyItem> {
   return request<StudyItem>(`/api/v1/studies/${studyId}`, accessToken)
 }
 
@@ -330,7 +330,7 @@ export async function hideAllStudyHistory(accessToken: string): Promise<void> {
 }
 
 export async function fetchPosts(
-  accessToken?: string,
+  accessToken: string,
   boardType?: PostBoardType,
   page = 0,
   size = 20,
@@ -349,7 +349,7 @@ export async function fetchPosts(
   return request<PageResponse<PostItem>>(`/api/v1/posts${query}`, accessToken)
 }
 
-export async function fetchPost(postId: number, accessToken?: string): Promise<PostItem> {
+export async function fetchPost(postId: number, accessToken: string): Promise<PostItem> {
   return request<PostItem>(`/api/v1/posts/${postId}`, accessToken)
 }
 
@@ -385,7 +385,7 @@ export async function deletePost(
 
 export async function fetchComments(
   postId: number,
-  accessToken?: string,
+  accessToken: string,
 ): Promise<CommentItem[]> {
   return request<CommentItem[]>(`/api/v1/posts/${postId}/comments`, accessToken)
 }

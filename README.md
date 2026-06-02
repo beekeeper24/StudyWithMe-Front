@@ -31,7 +31,8 @@ npm run dev
 
 ## Backend Integration
 
-현재 화면은 백엔드 OAuth, 스터디, 게시글, 댓글, 실시간 기능을 함께 확인하는 MVP 콘솔입니다.
+현재 화면은 로그인한 사용자가 스터디, 커뮤니티, 채팅, 알림을 이용하는 MVP 앱입니다.
+로그인 전에는 OAuth 로그인 화면만 노출하며, 사이트 기능 API는 백엔드에서도 JWT 인증이 필요합니다.
 
 - `GET /api/v1/auth/me`
 - `GET /api/v1/studies`
@@ -63,7 +64,7 @@ OAuth 로그인 흐름:
 
 프론트는 시작 시 refresh token cookie로 세션 복구를 자동 시도합니다. 성공하면 access token을 메모리 state로 복구하고 내 정보, 알림, 채팅방 목록을 동기화합니다.
 
-일반 화면에서는 access token과 backend URL 같은 내부 값을 숨깁니다. 수동 토큰 입력, 재발급, 내 정보/알림 동기화, roomId 직접 입력은 우측 상단 개발 도구 버튼에서 확인합니다.
+일반 화면에서는 access token과 backend URL 같은 내부 값을 노출하지 않습니다.
 
 백엔드 OAuth 성공 redirect 기본값은 `http://localhost:5173/auth/callback`입니다. Vite가 `5174`로 떠 있으면 백엔드를 아래처럼 실행하세요.
 
@@ -71,4 +72,4 @@ OAuth 로그인 흐름:
 OAUTH_SUCCESS_FRONTEND_REDIRECT_URI=http://localhost:5174/auth/callback ./gradlew bootRun
 ```
 
-수동 검증이 필요하면 access token 입력칸에 직접 붙여 넣어도 REST와 STOMP 연결을 확인할 수 있습니다.
+REST와 STOMP 연결은 OAuth 로그인 후 발급된 access token으로 자동 처리합니다.

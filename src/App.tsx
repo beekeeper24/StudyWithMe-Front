@@ -281,28 +281,6 @@ const studyListScopes: Array<{ id: StudyListScope; label: string }> = [
   { id: 'active', label: '참여 중' },
 ]
 
-async function fetchVisibleStudies(token?: string, keyword = '', page = 0) {
-  if (token) {
-    try {
-      return await fetchStudies(token, keyword, page, studyPageSize)
-    } catch {
-      return fetchStudies(undefined, keyword, page, studyPageSize)
-    }
-  }
-  return fetchStudies(undefined, keyword, page, studyPageSize)
-}
-
-async function fetchVisibleStudy(studyId: number, token?: string) {
-  if (token) {
-    try {
-      return await fetchStudy(studyId, token)
-    } catch {
-      return fetchStudy(studyId)
-    }
-  }
-  return fetchStudy(studyId)
-}
-
 function App() {
   const [activeView, setActiveView] = useState<WorkspaceView>('lobby')
   const [accessToken, setAccessToken] = useState(initialOAuthToken?.accessToken ?? '')
@@ -542,7 +520,7 @@ function App() {
     async function loadInitialContent() {
       try {
         const [studyItems, postPageResult] = await Promise.all([
-          fetchVisibleStudies(accessToken.trim()),
+          fetchStudies(accessToken.trim(), '', 0, studyPageSize),
           fetchPosts(accessToken.trim(), 'FREE'),
         ])
         if (cancelled) return
@@ -892,7 +870,7 @@ function App() {
   async function loadStudies(keyword = studySearchKeyword, page = studyPage) {
     setIsStudyListLoading(true)
     try {
-      const result = await fetchVisibleStudies(accessToken.trim(), keyword, page)
+      const result = await fetchStudies(accessToken.trim(), keyword, page, studyPageSize)
       setStudies(result.content)
       setStudyPage(result.page)
       setHasNextStudyPage(result.hasNext)
@@ -1052,7 +1030,7 @@ function App() {
 
   async function selectStudy(studyId: number) {
     try {
-      const item = await fetchVisibleStudy(studyId, accessToken.trim())
+      const item = await fetchStudy(studyId, accessToken.trim())
       setSelectedStudy(item)
       if (item.ownedByRequester) {
         await loadStudyJoinRequests(item.id)
