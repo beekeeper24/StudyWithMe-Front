@@ -27,7 +27,7 @@ import {
   X,
 } from 'lucide-react'
 import './App.css'
-import { consumeOAuthCallback } from './auth'
+import { consumeOAuthCallback, consumePostLoginRedirectPath, savePostLoginRedirectPath } from './auth'
 import {
   closeStudy,
   completeSignup,
@@ -215,6 +215,7 @@ const oauthProviders: Array<{ id: OAuthProvider; label: string }> = [
 
 const initialOAuthCallback = consumeOAuthCallback()
 const initialOAuthToken = initialOAuthCallback.token
+const initialPostLoginRedirectPath = initialOAuthToken ? consumePostLoginRedirectPath() : null
 
 const emptyStudyForm = {
   title: '',
@@ -363,6 +364,7 @@ function App() {
   const notificationSyncInFlightRef = useRef(false)
   const notificationLastSyncAtRef = useRef(0)
   const notificationSyncGenerationRef = useRef(0)
+  const pendingPostLoginRedirectRef = useRef(initialPostLoginRedirectPath)
 
   const canConnect = accessToken.trim().length > 0
   const needsSignup = profile?.signupRequired === true
@@ -546,31 +548,13 @@ function App() {
   useEffect(() => {
     if (!canConnect || needsSignup) return undefined
 
-    function applyCommunityRoute() {
-      const route = parseCommunityRoute(window.location.pathname)
-      if (!route) return
-
-      setActiveView('posts')
-      setSelectedCommunityBoard(route.boardId)
-      setEditingPostId(null)
-      setPostForm(emptyPostForm)
-      setPostSearchKeyword('')
-
-      if (route.postId == null) {
-        setSelectedPost(null)
-        setComments([])
-        setPostBoardMode('list')
-        void loadPosts(route.boardId, 0, '')
-        return
-      }
-
-      void loadPosts(route.boardId, 0, '')
-      void selectPost(route.postId, { pushRoute: false })
+    applyCommunityRoute()
+    function applyCurrentCommunityRoute() {
+      applyCommunityRoute()
     }
 
-    applyCommunityRoute()
-    window.addEventListener('popstate', applyCommunityRoute)
-    return () => window.removeEventListener('popstate', applyCommunityRoute)
+    window.addEventListener('popstate', applyCurrentCommunityRoute)
+    return () => window.removeEventListener('popstate', applyCurrentCommunityRoute)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken, canConnect, needsSignup])
 
@@ -611,6 +595,7 @@ function App() {
           setNotifications(items)
           setChatRooms(rooms)
           applyMyStudyHistory(history)
+          applyPostLoginRedirect()
           appendLog('내 정보 조회 성공')
         }
       } catch (error) {
@@ -631,6 +616,7 @@ function App() {
     return () => {
       cancelled = true
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appendLog, applyProfile, showToast])
 
   useEffect(() => {
@@ -657,6 +643,7 @@ function App() {
         setNotifications(items)
         applyMyStudyHistory(history)
         setChatRooms(rooms)
+        applyPostLoginRedirect()
         appendLog('세션 자동 복구 완료')
       } catch {
         if (!cancelled) {
@@ -673,10 +660,12 @@ function App() {
     return () => {
       cancelled = true
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appendLog, applyProfile, applyToken])
 
   function startOAuth(provider: OAuthProvider) {
     setSessionNotice('')
+    savePostLoginRedirectPath()
     window.location.assign(oauthLoginUrl(provider))
   }
 
@@ -788,6 +777,7 @@ function App() {
       appendLog('별명 설정 완료')
       showToast('success', '별명이 저장되었습니다.')
       await Promise.all([loadStudies(), loadMyStudies(), loadChatRooms()])
+      applyPostLoginRedirect()
     } catch (error) {
       const message = errorMessage(error, '별명을 저장하지 못했습니다.')
       setNicknameError(message)
@@ -829,6 +819,7 @@ function App() {
       appendLog('회원가입 완료')
       showToast('success', '가입이 완료되었습니다.')
       await Promise.all([loadStudies(), loadMyStudies(), loadChatRooms()])
+      applyPostLoginRedirect()
     } catch (error) {
       const message = errorMessage(error, '회원가입을 완료하지 못했습니다.')
       setNicknameError(message)
@@ -1443,6 +1434,41 @@ function App() {
     if (window.location.pathname !== nextPath) {
       window.history.pushState(null, '', nextPath)
     }
+  }
+
+  function applyPostLoginRedirect() {
+    const redirectPath = pendingPostLoginRedirectRef.current
+    if (!redirectPath) return
+
+    pendingPostLoginRedirectRef.current = null
+    const redirectUrl = new URL(redirectPath, window.location.origin)
+    const nextPath = `${redirectUrl.pathname}${redirectUrl.search}`
+    if (`${window.location.pathname}${window.location.search}` !== nextPath) {
+      window.history.replaceState(null, '', nextPath)
+    }
+    applyCommunityRoute(redirectUrl.pathname)
+  }
+
+  function applyCommunityRoute(pathname = window.location.pathname) {
+    const route = parseCommunityRoute(pathname)
+    if (!route) return
+
+    setActiveView('posts')
+    setSelectedCommunityBoard(route.boardId)
+    setEditingPostId(null)
+    setPostForm(emptyPostForm)
+    setPostSearchKeyword('')
+
+    if (route.postId == null) {
+      setSelectedPost(null)
+      setComments([])
+      setPostBoardMode('list')
+      void loadPosts(route.boardId, 0, '')
+      return
+    }
+
+    void loadPosts(route.boardId, 0, '')
+    void selectPost(route.postId, { pushRoute: false })
   }
 
   function searchPosts(keyword: string) {
