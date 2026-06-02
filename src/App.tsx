@@ -170,7 +170,8 @@ const oauthProviders: Array<{ id: OAuthProvider; label: string }> = [
   { id: 'kakao', label: 'Kakao' },
 ]
 
-const initialOAuthToken = consumeOAuthCallback()
+const initialOAuthCallback = consumeOAuthCallback()
+const initialOAuthToken = initialOAuthCallback.token
 
 const emptyStudyForm = {
   title: '',
@@ -329,9 +330,12 @@ function App() {
   const [showChatMembers, setShowChatMembers] = useState(false)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [sessionChecked, setSessionChecked] = useState(Boolean(initialOAuthToken))
+  const [sessionNotice, setSessionNotice] = useState(initialOAuthCallback.errorMessage ?? '')
   const [log, setLog] = useState<string[]>(
     initialOAuthToken
       ? ['로그인 처리 완료', '프론트가 준비되었습니다.']
+      : initialOAuthCallback.errorMessage
+        ? [initialOAuthCallback.errorMessage, '프론트가 준비되었습니다.']
       : ['프론트가 준비되었습니다.'],
   )
   const clientRef = useRef<Client | null>(null)
@@ -571,6 +575,7 @@ function App() {
         const me = await fetchMe(token)
         if (!cancelled) {
           applyProfile(me)
+          setSessionNotice('')
         }
         if (cancelled || isSignupRequired(me)) return
 
@@ -588,6 +593,12 @@ function App() {
       } catch (error) {
         if (!cancelled) {
           const message = errorMessage(error, '내 정보를 불러오지 못했습니다.')
+          const notice = '로그인 처리를 완료하지 못했습니다. 다시 로그인해 주세요.'
+          setAccessToken('')
+          setTokenExpiresAt(null)
+          applyProfile(null)
+          setSessionChecked(true)
+          setSessionNotice(notice)
           appendLog(message)
           showToast('error', '내 정보를 불러오지 못했습니다.', message)
         }
@@ -609,6 +620,7 @@ function App() {
         const token = await refreshAccessToken()
         if (cancelled) return
         applyToken(token)
+        setSessionNotice('')
         const me = await fetchMe(token.accessToken)
         if (cancelled) return
         applyProfile(me)
@@ -642,6 +654,7 @@ function App() {
   }, [appendLog, applyProfile, applyToken])
 
   function startOAuth(provider: OAuthProvider) {
+    setSessionNotice('')
     window.location.assign(oauthLoginUrl(provider))
   }
 
@@ -649,6 +662,7 @@ function App() {
     try {
       const token = await refreshAccessToken()
       applyToken(token)
+      setSessionNotice('')
       appendLog('access token 재발급 성공')
       showToast('success', '세션이 갱신되었습니다.')
     } catch (error) {
@@ -1749,8 +1763,10 @@ function App() {
     appendLog(message)
 
     if (isSessionExpired(error)) {
-      showToast('error', '로그인이 필요합니다.', '다시 로그인해 주세요.')
+      const notice = '세션이 만료되었습니다. 다시 로그인해 주세요.'
+      showToast('error', '로그인이 필요합니다.', notice)
       clearAuthenticatedState()
+      setSessionNotice(notice)
       return
     }
 
@@ -1800,6 +1816,7 @@ function App() {
                 <strong>StudyWithMe</strong>
               </div>
             </div>
+            {sessionNotice && <p className="login-notice">{sessionNotice}</p>}
             <div className="login-actions">
               {oauthProviders.map((provider) => (
                 <button
