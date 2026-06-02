@@ -1054,7 +1054,7 @@ function App() {
   }
 
   async function openStudyChatRoom(studyId: number) {
-    if (!canConnect) return
+    if (!requireAuthenticated('스터디 채팅방')) return
     try {
       const room = await createStudyChatRoom(accessToken.trim(), studyId)
       setSelectedStudy(null)
@@ -1069,7 +1069,7 @@ function App() {
   }
 
   async function openPrivateChatRoom(targetMemberId: number) {
-    if (!canConnect) return
+    if (!requireAuthenticated('1:1 채팅')) return
     try {
       const room = await createPrivateChatRoom(accessToken.trim(), targetMemberId)
       setSelectedStudy(null)
@@ -1084,10 +1084,7 @@ function App() {
   }
 
   async function submitStudy() {
-    if (!canConnect) {
-      showToast('error', '로그인이 필요합니다.', '다시 로그인해 주세요.')
-      return
-    }
+    if (!requireAuthenticated(editingStudyId == null ? '스터디 만들기' : '스터디 수정')) return
 
     const validation = validateStudyForm(studyForm)
     if (Object.keys(validation.errors).length > 0) {
@@ -1176,7 +1173,7 @@ function App() {
   }
 
   async function mutateStudy(studyId: number, action: StudyAction) {
-    if (!canConnect) return
+    if (!requireAuthenticated(actionLabel(action))) return
     const wasSelected = selectedStudy?.id === studyId
     try {
       if (action === 'join') await joinStudy(accessToken.trim(), studyId)
@@ -1244,7 +1241,7 @@ function App() {
   }
 
   async function confirmStudyAction() {
-    if (!studyConfirmAction || !canConnect) return
+    if (!studyConfirmAction || !requireAuthenticated('스터디 작업')) return
     const action = studyConfirmAction
     setStudyConfirmAction(null)
     if (action.type === 'study') {
@@ -1263,7 +1260,7 @@ function App() {
   }
 
   async function approveJoinRequest(studyId: number, memberId: number) {
-    if (!canConnect) return
+    if (!requireAuthenticated('참여 신청 승인')) return
     try {
       await approveStudyJoinRequest(accessToken.trim(), studyId, memberId)
       await Promise.all([
@@ -1283,7 +1280,7 @@ function App() {
   }
 
   async function rejectJoinRequest(studyId: number, memberId: number) {
-    if (!canConnect) return
+    if (!requireAuthenticated('참여 신청 거절')) return
     try {
       await rejectStudyJoinRequest(accessToken.trim(), studyId, memberId)
       await Promise.all([loadNotifications(), loadStudyJoinRequests(studyId)])
@@ -1294,7 +1291,7 @@ function App() {
   }
 
   async function cancelJoinRequest(studyId: number) {
-    if (!canConnect) return
+    if (!requireAuthenticated('참여 신청 취소')) return
     try {
       await cancelStudyJoinRequest(accessToken.trim(), studyId)
       await Promise.all([loadStudies(), loadMyStudies(), loadNotifications()])
@@ -1524,7 +1521,8 @@ function App() {
   }
 
   async function submitPost() {
-    if (!canConnect || !postForm.title.trim() || !postForm.content.trim()) return
+    if (!requireAuthenticated(editingPostId ? '글 수정' : '글 작성')) return
+    if (!postForm.title.trim() || !postForm.content.trim()) return
     if (communityBoardType(selectedCommunityBoard) === 'NOTICE' && !isAdmin) {
       showToast('error', '공지사항은 관리자만 작성할 수 있습니다.')
       return
@@ -1553,7 +1551,7 @@ function App() {
   }
 
   async function removePost() {
-    if (!canConnect || !selectedPost) return
+    if (!requireAuthenticated('글 삭제') || !selectedPost) return
     const boardId = communityBoardId(selectedPost.boardType)
     try {
       await deletePost(accessToken.trim(), selectedPost.id)
@@ -1591,7 +1589,7 @@ function App() {
   }
 
   async function submitComment() {
-    if (!canConnect || !selectedPostId || !commentText.trim()) return
+    if (!requireAuthenticated('댓글 작성') || !selectedPostId || !commentText.trim()) return
     try {
       await createComment(accessToken.trim(), selectedPostId, { content: commentText.trim() })
       setCommentText('')
@@ -1604,7 +1602,7 @@ function App() {
 
   async function submitReply(commentId: number) {
     const content = replyDrafts[commentId]?.trim()
-    if (!canConnect || !selectedPostId || !content) return
+    if (!requireAuthenticated('답글 작성') || !selectedPostId || !content) return
     try {
       await replyToComment(accessToken.trim(), commentId, { content })
       setReplyDrafts((current) => ({ ...current, [commentId]: '' }))
@@ -1627,7 +1625,7 @@ function App() {
 
   async function submitCommentEdit(commentId: number) {
     const content = commentEditText.trim()
-    if (!canConnect || !selectedPostId || !content) return
+    if (!requireAuthenticated('댓글 수정') || !selectedPostId || !content) return
     try {
       await updateComment(accessToken.trim(), commentId, { content })
       setEditingCommentId(null)
@@ -1641,7 +1639,7 @@ function App() {
   }
 
   async function removeComment(commentId: number) {
-    if (!canConnect || !selectedPostId) return
+    if (!requireAuthenticated('댓글 삭제') || !selectedPostId) return
     try {
       await deleteComment(accessToken.trim(), commentId)
       if (editingCommentId === commentId) {
@@ -1658,7 +1656,7 @@ function App() {
   }
 
   async function loadChatMessages(roomIdValue: number) {
-    if (!canConnect) return
+    if (!requireAuthenticated('채팅방')) return
     try {
       disconnectRealtime()
       setRoomId(String(roomIdValue))
@@ -1688,7 +1686,7 @@ function App() {
   }
 
   async function removeChatRoom(targetRoom: ChatRoom) {
-    if (!canConnect) return
+    if (!requireAuthenticated('채팅방 삭제')) return
     try {
       await deleteChatRoom(accessToken.trim(), targetRoom.id)
       if (roomId === String(targetRoom.id)) {
@@ -1707,7 +1705,7 @@ function App() {
   }
 
   function connectRealtime(targetRoomId = Number(roomId.trim())) {
-    if (!canConnect) return
+    if (!requireAuthenticated('채팅 연결')) return
     if (!Number.isFinite(targetRoomId) || targetRoomId <= 0) return
     clientRef.current?.deactivate()
     setStatus('connecting')
@@ -1759,7 +1757,16 @@ function App() {
     showToast('error', fallback, message)
   }
 
+  function requireAuthenticated(actionName: string) {
+    if (canConnect) return true
+    const message = `${actionName}은 로그인 후 사용할 수 있습니다.`
+    appendLog(message)
+    showToast('error', '로그인이 필요합니다.', message)
+    return false
+  }
+
   function submitMessage() {
+    if (!requireAuthenticated('메시지 전송')) return
     if (!roomId) {
       showToast('info', '채팅방을 선택해 주세요.')
       return
@@ -3427,7 +3434,7 @@ function App() {
                   className="primary"
                   type="button"
                   onClick={submitPost}
-                  disabled={!postForm.title.trim() || !postForm.content.trim()}
+                  disabled={!canConnect || !postForm.title.trim() || !postForm.content.trim()}
                 >
                   <Send size={16} />
                   저장
@@ -3492,7 +3499,7 @@ function App() {
                       className="primary"
                       type="button"
                       onClick={submitComment}
-                      disabled={!commentText.trim()}
+                      disabled={!canConnect || !commentText.trim()}
                     >
                       댓글 작성
                     </button>
@@ -3609,7 +3616,7 @@ function App() {
             className="primary"
             type="button"
             onClick={() => submitCommentEdit(comment.id)}
-            disabled={!commentEditText.trim()}
+            disabled={!canConnect || !commentEditText.trim()}
           >
             저장
           </button>
@@ -3772,9 +3779,9 @@ function App() {
                   if (event.key === 'Enter') submitMessage()
                 }}
                 placeholder={isActiveRoomReadOnly ? '종료된 스터디입니다' : (roomId ? '메시지를 입력하세요' : '채팅방을 먼저 선택하세요')}
-                disabled={!roomId || isActiveRoomReadOnly}
+                disabled={!canConnect || !roomId || isActiveRoomReadOnly}
               />
-              <button type="button" onClick={submitMessage} disabled={!roomId || isActiveRoomReadOnly}>
+              <button type="button" onClick={submitMessage} disabled={!canConnect || !roomId || isActiveRoomReadOnly}>
                 <Send size={18} />
               </button>
             </div>
