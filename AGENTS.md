@@ -87,6 +87,10 @@ Do not use orchestration when it would create file conflicts, duplicate the same
 ## Behavioral Guardrails
 
 - Before meaningful implementation, state the current milestone or slice, key assumptions, unresolved uncertainty, and intended verification target briefly.
+- The milestone statement must name the intended PR/review unit, not just the next tiny edit. Example: "This branch is for community list UX polish; PR only after search controls, pagination copy, row styling, tests, and docs are complete."
+- If the user gives no milestone, infer a reasonable one from current context and state it before coding. Do not default to one TODO item as one PR.
+- Ask the user only when the milestone, priority, or acceptance criteria would be risky to infer. Start with one or two direct questions.
+- Use OMX `deep-interview`, Superpowers planning, or other planning skills only when direct questions are not enough to clarify a broad or ambiguous feature. Do not use heavy planning tools for ordinary implementation or obvious follow-up work.
 - If a requirement has multiple plausible interpretations, surface the tradeoff before coding instead of silently choosing one.
 - Every changed line should trace to the user request, the current plan, or cleanup caused by this change.
 
@@ -155,6 +159,13 @@ Learning notes split:
 - Push work branches and `develop` as needed. Promote to `main` only through an intentional release step.
 - Split commits by reviewable intent, not by tool run.
 - When the user asks to commit during an active work branch, commit the verified checkpoint and push the branch if useful; do not open or merge a PR unless the issue/feature/MVP slice is ready or the user explicitly asks for a PR.
+- Before opening a PR, run this PR readiness gate and do not skip it:
+  - Name the reviewable deliverable in one sentence.
+  - Confirm all closely related small edits for that deliverable are included, or explain why they must be split.
+  - Confirm this is not merely an intermediate checkpoint.
+  - Confirm the change is not better held on the current branch for the next related task.
+  - If the gate fails, commit locally if useful, keep the branch open, and continue instead of creating a PR.
+- Small PRs are acceptable only for hotfixes, failing CI/runtime breakage, security fixes that must land immediately, or when the user explicitly asks to land that narrow change.
 - When the issue/feature/MVP slice is ready for integration, treat the default completion path as:
   1. commit all verified work on the work branch;
   2. push the work branch;
