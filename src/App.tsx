@@ -124,7 +124,9 @@ function communityBoardId(boardType: PostBoardType): CommunityBoardId {
 const postPageSize = 20
 const studyPageSize = 20
 const studyHistoryPageSize = 10
+const notificationListLimit = 30
 const notificationCatchupIntervalMs = 60_000
+const notificationCatchupMinGapMs = 5_000
 const postSearchScopes: Array<{ value: PostSearchScope; label: string }> = [
   { value: 'ALL', label: '전체' },
   { value: 'TITLE', label: '제목' },
@@ -155,6 +157,53 @@ function parseCommunityRoute(pathname: string): CommunityRoute | null {
   const postId = Number(parts[2])
   if (!Number.isInteger(postId) || postId <= 0) return null
   return { boardId: board.id, postId }
+}
+
+function notificationKey(item: NotificationItem) {
+  if (item.id != null) return `id:${item.id}`
+  return [
+    'pending',
+    item.type,
+    item.targetType,
+    item.targetId,
+    item.createdAt ?? '',
+    item.message,
+  ].join(':')
+}
+
+function compareNotificationsDesc(a: NotificationItem, b: NotificationItem) {
+  const createdA = a.createdAt ? new Date(a.createdAt).getTime() : 0
+  const createdB = b.createdAt ? new Date(b.createdAt).getTime() : 0
+  if (createdA !== createdB) return createdB - createdA
+  return (b.id ?? 0) - (a.id ?? 0)
+}
+
+function mergeNotifications(
+  current: NotificationItem[],
+  incoming: NotificationItem[],
+  limit = notificationListLimit,
+) {
+  const merged = new Map<string, NotificationItem>()
+
+  for (const item of [...current, ...incoming]) {
+    const key = notificationKey(item)
+    const previous = merged.get(key)
+    if (!previous) {
+      merged.set(key, item)
+      continue
+    }
+
+    merged.set(key, {
+      ...previous,
+      ...item,
+      read: previous.read || item.read,
+      readAt: item.readAt ?? previous.readAt,
+    })
+  }
+
+  return [...merged.values()]
+    .sort(compareNotificationsDesc)
+    .slice(0, limit)
 }
 
 const recruitingStudyStatuses = new Set(['OPEN', 'RECRUITING'])
@@ -333,6 +382,9 @@ function App() {
   const historySearchTimerRef = useRef<number | null>(null)
   const postSearchTimerRef = useRef<number | null>(null)
   const postListRequestRef = useRef(0)
+  const notificationSyncInFlightRef = useRef(false)
+  const notificationLastSyncAtRef = useRef(0)
+  const notificationSyncGenerationRef = useRef(0)
 
   const canConnect = accessToken.trim().length > 0
   const needsSignup = profile?.signupRequired === true
@@ -423,15 +475,24 @@ function App() {
   useEffect(() => {
     if (!canConnect || needsSignup) return undefined
     let cancelled = false
+    const syncGeneration = notificationSyncGenerationRef.current
 
-    async function syncNotificationsSilently() {
+    async function syncNotificationsSilently(force = false) {
+      const now = Date.now()
+      if (notificationSyncInFlightRef.current) return
+      if (!force && now - notificationLastSyncAtRef.current < notificationCatchupMinGapMs) return
+
+      notificationSyncInFlightRef.current = true
       try {
         const items = await fetchNotifications(accessToken.trim())
-        if (!cancelled) {
-          setNotifications(items)
+        if (!cancelled && syncGeneration === notificationSyncGenerationRef.current) {
+          notificationLastSyncAtRef.current = Date.now()
+          setNotifications((current) => mergeNotifications(current, items))
         }
       } catch {
         // Background catch-up is best-effort; direct user actions still surface errors.
+      } finally {
+        notificationSyncInFlightRef.current = false
       }
     }
 
@@ -444,6 +505,8 @@ function App() {
     function syncOnFocus() {
       void syncNotificationsSilently()
     }
+
+    void syncNotificationsSilently(true)
 
     const timer = window.setInterval(syncNotificationsSilently, notificationCatchupIntervalMs)
     document.addEventListener('visibilitychange', syncWhenVisible)
@@ -680,6 +743,9 @@ function App() {
       postSearchTimerRef.current = null
     }
     disconnectRealtime()
+    notificationSyncGenerationRef.current += 1
+    notificationSyncInFlightRef.current = false
+    notificationLastSyncAtRef.current = 0
     setAccessToken('')
     applyProfile(null)
     setNotifications([])
@@ -802,7 +868,8 @@ function App() {
     if (!canConnect) return
     try {
       const items = await fetchNotifications(accessToken.trim())
-      setNotifications(items)
+      notificationLastSyncAtRef.current = Date.now()
+      setNotifications((current) => mergeNotifications(current, items))
       appendLog(`알림 ${items.length}개 동기화`)
     } catch (error) {
       reportRequestError(error, '알림을 불러오지 못했습니다.')
@@ -1701,7 +1768,7 @@ function App() {
         setChatMessages((current) => [...current, incoming].slice(-30))
       },
       onNotification: (incoming) => {
-        setNotifications((current) => [incoming, ...current].slice(0, 30))
+        setNotifications((current) => mergeNotifications(current, [incoming]))
       },
     })
 
@@ -3703,10 +3770,10 @@ function App() {
           {notifications.length === 0 ? (
             <p className="muted">아직 수신한 알림이 없습니다.</p>
           ) : (
-            notifications.map((item, index) => (
+            notifications.map((item) => (
               <article
                 className={item.read ? 'notice-row read' : 'notice-row'}
-                key={`${item.id ?? 'notice'}-${index}`}
+                key={notificationKey(item)}
               >
                 <button
                   className="notice-main"
