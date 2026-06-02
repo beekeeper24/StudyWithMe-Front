@@ -105,6 +105,17 @@
   margin-bottom: 22px;
 }
 
+.login-notice {
+  margin: -6px 0 18px;
+  padding: 11px 13px;
+  border: 1px solid #ffd8d4;
+  border-radius: 10px;
+  background: #fff6f5;
+  color: #b42318;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .login-actions {
   display: grid;
   gap: 10px;
