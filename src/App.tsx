@@ -7,10 +7,8 @@ import {
   ChevronRight,
   CheckCircle2,
   CircleAlert,
-  Circle,
   ArrowLeft,
   House,
-  KeyRound,
   LogIn,
   LogOut,
   MessageSquareText,
@@ -18,12 +16,9 @@ import {
   Newspaper,
   PanelLeftClose,
   PanelLeftOpen,
-  Plug,
   Plus,
   PencilLine,
-  RefreshCw,
   Search,
-  SlidersHorizontal,
   Send,
   Settings2,
   Trash2,
@@ -79,7 +74,6 @@ import {
   withdrawAccount,
   ApiClientError,
 } from './api'
-import { API_BASE_URL } from './config'
 import { createRealtimeClient, sendChatMessage } from './realtime'
 import type {
   AccessTokenResponse,
@@ -263,12 +257,9 @@ async function fetchVisibleStudy(studyId: number, token?: string) {
 function App() {
   const [activeView, setActiveView] = useState<WorkspaceView>('lobby')
   const [accessToken, setAccessToken] = useState(initialOAuthToken?.accessToken ?? '')
-  const [tokenExpiresAt, setTokenExpiresAt] = useState<string | null>(
-    initialOAuthToken?.accessTokenExpiresAt ?? null,
-  )
   const [roomId, setRoomId] = useState('')
   const [message, setMessage] = useState('')
-  const [status, setStatus] = useState<ConnectionStatus>('idle')
+  const [, setStatus] = useState<ConnectionStatus>('idle')
   const [profile, setProfile] = useState<AuthProfile | null>(null)
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([])
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
@@ -322,7 +313,6 @@ function App() {
   const [commentDeleteTarget, setCommentDeleteTarget] = useState<CommentItem | null>(null)
   const [studyConfirmAction, setStudyConfirmAction] = useState<StudyConfirmAction | null>(null)
   const [lobbySlideIndex, setLobbySlideIndex] = useState(0)
-  const [showDevTools, setShowDevTools] = useState(false)
   const [showNotificationMenu, setShowNotificationMenu] = useState(false)
   const [showProfileMenu, setShowProfileMenu] = useState(false)
   const [showAccountManagementModal, setShowAccountManagementModal] = useState(false)
@@ -331,7 +321,7 @@ function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [sessionChecked, setSessionChecked] = useState(Boolean(initialOAuthToken))
   const [sessionNotice, setSessionNotice] = useState(initialOAuthCallback.errorMessage ?? '')
-  const [log, setLog] = useState<string[]>(
+  const [, setLog] = useState<string[]>(
     initialOAuthToken
       ? ['로그인 처리 완료', '프론트가 준비되었습니다.']
       : initialOAuthCallback.errorMessage
@@ -404,15 +394,7 @@ function App() {
 
   const applyToken = useCallback((token: AccessTokenResponse) => {
     setAccessToken(token.accessToken)
-    setTokenExpiresAt(token.accessTokenExpiresAt)
   }, [])
-
-  const statusText = useMemo(() => {
-    if (status === 'connected') return '연결됨'
-    if (status === 'connecting') return '연결 중'
-    if (status === 'error') return '오류'
-    return '대기'
-  }, [status])
 
   const topLevelComments = useMemo(
     () => comments.filter((item) => item.parentCommentId == null),
@@ -595,7 +577,6 @@ function App() {
           const message = errorMessage(error, '내 정보를 불러오지 못했습니다.')
           const notice = '로그인 처리를 완료하지 못했습니다. 다시 로그인해 주세요.'
           setAccessToken('')
-          setTokenExpiresAt(null)
           applyProfile(null)
           setSessionChecked(true)
           setSessionNotice(notice)
@@ -658,18 +639,6 @@ function App() {
     window.location.assign(oauthLoginUrl(provider))
   }
 
-  async function refreshSession() {
-    try {
-      const token = await refreshAccessToken()
-      applyToken(token)
-      setSessionNotice('')
-      appendLog('access token 재발급 성공')
-      showToast('success', '세션이 갱신되었습니다.')
-    } catch (error) {
-      reportRequestError(error, '세션을 갱신하지 못했습니다.')
-    }
-  }
-
   async function logout() {
     try {
       await logoutSession()
@@ -712,7 +681,6 @@ function App() {
     }
     disconnectRealtime()
     setAccessToken('')
-    setTokenExpiresAt(null)
     applyProfile(null)
     setNotifications([])
     setChatRooms([])
@@ -757,17 +725,6 @@ function App() {
     setTermsAgreed(false)
     setPrivacyPolicyAgreed(false)
     setSessionChecked(true)
-  }
-
-  async function loadProfile() {
-    if (!canConnect) return
-    try {
-      const me = await fetchMe(accessToken.trim())
-      applyProfile(me)
-      appendLog('내 정보 조회 성공')
-    } catch (error) {
-      reportRequestError(error, '내 정보를 불러오지 못했습니다.')
-    }
   }
 
   async function submitNickname() {
@@ -1950,12 +1907,6 @@ function App() {
           ))}
         </nav>
 
-        {showDevTools && (
-          <div className="sidebar-footer">
-            <Settings2 size={18} />
-            <span>Backend {API_BASE_URL}</span>
-          </div>
-        )}
       </aside>
 
       <main className="workspace">
@@ -2026,54 +1977,8 @@ function App() {
                 </div>
               )}
             </div>
-            <button
-              className="dev-toggle-button"
-              type="button"
-              onClick={() => setShowDevTools((current) => !current)}
-              aria-label="개발 도구"
-              title="개발 도구"
-            >
-              <SlidersHorizontal size={16} />
-            </button>
-            {showDevTools && (
-              <div className={`status-pill ${status}`}>
-                <Circle size={10} fill="currentColor" />
-                {statusText}
-              </div>
-            )}
           </div>
         </header>
-
-        {showDevTools && (
-          <section className="control-strip" aria-label="developer controls">
-            <label>
-              <span>Access token</span>
-              <input
-                value={accessToken}
-                onChange={(event) => setAccessToken(event.target.value)}
-                placeholder="로그인 또는 재발급으로 자동 입력됩니다"
-                type="password"
-              />
-              <em className="dev-note">
-                {tokenExpiresAt ? `만료 예정: ${formatTime(tokenExpiresAt)}` : 'access token 없음'}
-              </em>
-            </label>
-            <div className="control-actions">
-              <button type="button" onClick={refreshSession}>
-                <KeyRound size={16} />
-                재발급
-              </button>
-              <button type="button" onClick={loadProfile} disabled={!canConnect}>
-                <RefreshCw size={16} />
-                내 정보
-              </button>
-              <button type="button" onClick={loadNotifications} disabled={!canConnect}>
-                <Bell size={16} />
-                알림 동기화
-              </button>
-            </div>
-          </section>
-        )}
 
         {activeView === 'lobby' && renderLobby()}
         {activeView === 'studies' && renderStudies()}
@@ -2250,7 +2155,6 @@ function App() {
             </div>
           </div>
         </section>
-        {showDevTools && renderActivityPanel()}
       </div>
     )
   }
@@ -2500,8 +2404,6 @@ function App() {
             </div>
           </article>
         )}
-
-        {showDevTools && renderActivityPanel()}
       </section>
     )
   }
@@ -2908,8 +2810,6 @@ function App() {
             {renderStudyHistoryPagination('past')}
           </section>
         </div>
-
-        {showDevTools && renderActivityPanel()}
       </section>
     )
   }
@@ -3645,34 +3545,6 @@ function App() {
   function renderChat() {
     return (
       <>
-        {showDevTools && (
-          <section className="control-strip" aria-label="chat controls">
-            <label className="room-field">
-              <span>Chat room</span>
-              <input
-                value={roomId}
-                onChange={(event) => setRoomId(event.target.value)}
-                placeholder="roomId"
-                inputMode="numeric"
-              />
-            </label>
-            <div className="control-actions">
-              <button
-                className="primary"
-                type="button"
-                onClick={() => connectRealtime()}
-                disabled={!canConnect || status === 'connecting'}
-              >
-                <Plug size={16} />
-                연결
-              </button>
-              <button type="button" onClick={disconnectRealtime}>
-                해제
-              </button>
-            </div>
-          </section>
-        )}
-
         <section className="main-column chat-workspace">
           <aside className="chat-room-column">
             <div className="section-heading compact">
@@ -3804,7 +3676,6 @@ function App() {
             </div>
           </div>
         </section>
-        {showDevTools && renderActivityPanel()}
       </>
     )
   }
@@ -3871,24 +3742,6 @@ function App() {
           )}
         </div>
       </div>
-    )
-  }
-
-  function renderActivityPanel() {
-    return (
-      <section className="activity-panel">
-        <div className="section-heading compact">
-          <h2>활동 로그</h2>
-        </div>
-        <ul>
-          {log.map((item, index) => (
-            <li key={`${item}-${index}`}>
-              <Users size={14} />
-              <span>{item}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
     )
   }
 
