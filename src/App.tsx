@@ -62,6 +62,7 @@ import {
   joinStudy,
   leaveStudy,
   logoutSession,
+  markAllNotificationsRead as markAllNotificationsReadRequest,
   markNotificationRead,
   oauthLoginUrl,
   refreshAccessToken,
@@ -1494,22 +1495,19 @@ function App() {
           notification.id === updated.id ? updated : notification,
         ),
       )
-    } catch {
-      setNotifications((current) =>
-        current.map((notification) =>
-          notification.id === item.id
-            ? { ...notification, read: true, readAt: new Date().toISOString() }
-            : notification,
-        ),
-      )
+    } catch (error) {
+      reportRequestError(error, '알림을 읽음 처리하지 못했습니다.')
     }
   }
 
   async function markAllNotificationsRead() {
-    const unreadItems = notifications.filter((item) => item.id && !item.read)
-    if (unreadItems.length === 0) return
-
-    await Promise.all(unreadItems.map((item) => markNotificationReadLocally(item)))
+    if (notifications.every((item) => item.read)) return
+    try {
+      const updated = await markAllNotificationsReadRequest(accessToken.trim())
+      setNotifications((current) => mergeNotifications(current, updated))
+    } catch (error) {
+      reportRequestError(error, '알림을 모두 읽음 처리하지 못했습니다.')
+    }
   }
 
   async function removeNotification(item: NotificationItem) {
