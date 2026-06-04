@@ -24,6 +24,7 @@ export type ChatMessage = {
   senderMemberId: number
   content: string
   createdAt?: string
+  readMemberCount?: number
 }
 
 export type ChatRoom = {
