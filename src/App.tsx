@@ -156,6 +156,15 @@ function studyPath(studyId?: number) {
   return studyId ? `/studies/${studyId}` : '/studies'
 }
 
+function workspacePath(view: WorkspaceView, boardId: CommunityBoardId = 'free') {
+  if (view === 'lobby') return '/'
+  if (view === 'studies') return studyPath()
+  if (view === 'posts') return communityPath(boardId)
+  if (view === 'chat') return '/chat'
+  if (view === 'mypage') return '/mypage'
+  return '/'
+}
+
 function parseCommunityRoute(pathname: string): CommunityRoute | null {
   const parts = pathname.split('/').filter(Boolean)
   if (parts[0] !== 'community') return null
@@ -790,7 +799,7 @@ function App() {
       setNicknameError('')
       const updatedProfile = await updateNickname(accessToken.trim(), nickname)
       applyProfile(updatedProfile)
-      setActiveView('lobby')
+      navigateWorkspace('lobby')
       appendLog('별명 설정 완료')
       showToast('success', '별명이 저장되었습니다.')
       await Promise.all([loadStudies(), loadMyStudies(), loadChatRooms()])
@@ -832,7 +841,7 @@ function App() {
       applyProfile(updatedProfile)
       setTermsAgreed(false)
       setPrivacyPolicyAgreed(false)
-      setActiveView('lobby')
+      navigateWorkspace('lobby')
       appendLog('회원가입 완료')
       showToast('success', '가입이 완료되었습니다.')
       await Promise.all([loadStudies(), loadMyStudies(), loadChatRooms()])
@@ -1086,7 +1095,7 @@ function App() {
       const room = await createStudyChatRoom(accessToken.trim(), studyId)
       setSelectedStudy(null)
       setStudyJoinRequests([])
-      setActiveView('chat')
+      navigateWorkspace('chat')
       await loadChatRooms()
       await loadChatMessages(room.id)
       appendLog('스터디 채팅방 준비 완료')
@@ -1101,7 +1110,7 @@ function App() {
       const room = await createPrivateChatRoom(accessToken.trim(), targetMemberId)
       setSelectedStudy(null)
       setStudyJoinRequests([])
-      setActiveView('chat')
+      navigateWorkspace('chat')
       await loadChatRooms()
       await loadChatMessages(room.id)
       appendLog('1:1 채팅방 준비 완료')
@@ -1337,7 +1346,7 @@ function App() {
     void markNotificationReadLocally(item)
 
     if (item.targetType === 'CHAT_ROOM') {
-      setActiveView('chat')
+      navigateWorkspace('chat')
       await loadChatRooms()
       await loadChatMessages(item.targetId)
       return
@@ -1348,7 +1357,7 @@ function App() {
         showToast('error', '연결된 글을 찾지 못했습니다.')
         return
       }
-      setActiveView('posts')
+      navigateWorkspace('posts')
       setEditingPostId(null)
       setPostForm(emptyPostForm)
       setPostSearchKeyword('')
@@ -1362,7 +1371,7 @@ function App() {
 
     const notificationType = item.type.toUpperCase()
     if (notificationType === 'STUDY_JOIN_REQUESTED') {
-      setActiveView('studies')
+      navigateWorkspace('studies')
       setStudyListScope('active')
       await selectStudy(item.targetId)
       return
@@ -1370,7 +1379,7 @@ function App() {
 
     if (notificationType === 'STUDY_JOIN_APPROVED') {
       const history = await loadMyStudies()
-      setActiveView('studies')
+      navigateWorkspace('studies')
       setStudyListScope('active')
       const activeStudy = history?.activeStudies.find((study) => study.id === item.targetId)
       if (activeStudy) {
@@ -1383,7 +1392,7 @@ function App() {
 
     if (notificationType === 'STUDY_ENDED' || notificationType === 'STUDY_DELETED') {
       const history = await loadMyStudies()
-      setActiveView('mypage')
+      navigateWorkspace('mypage')
       const pastStudy = history?.pastStudies.find((study) => study.id === item.targetId)
       if (pastStudy) {
         await openStudyHistoryDetail(pastStudy)
@@ -1391,7 +1400,7 @@ function App() {
       return
     }
 
-    setActiveView('studies')
+    navigateWorkspace('studies')
     setStudyListScope('recruiting')
     await loadStudies()
     await selectStudy(item.targetId)
@@ -1456,6 +1465,18 @@ function App() {
     }
   }
 
+  function pushWorkspaceRoute(view: WorkspaceView) {
+    const nextPath = workspacePath(view, selectedCommunityBoard)
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState(null, '', nextPath)
+    }
+  }
+
+  function navigateWorkspace(view: WorkspaceView) {
+    setActiveView(view)
+    pushWorkspaceRoute(view)
+  }
+
   function pushStudyRoute(studyId?: number) {
     const nextPath = studyPath(studyId)
     if (window.location.pathname !== nextPath) {
@@ -1486,7 +1507,8 @@ function App() {
 
   function applyAppRoute(pathname = window.location.pathname) {
     if (applyCommunityRoute(pathname)) return
-    applyStudyRoute(pathname)
+    if (applyStudyRoute(pathname)) return
+    applyWorkspaceRoute(pathname)
   }
 
   function applyCommunityRoute(pathname = window.location.pathname) {
@@ -1533,6 +1555,24 @@ function App() {
     void loadStudies('', 0)
     void selectStudy(route.studyId, { pushRoute: false })
     return true
+  }
+
+  function applyWorkspaceRoute(pathname = window.location.pathname) {
+    if (pathname === '/') {
+      setActiveView('lobby')
+      return true
+    }
+    if (pathname === '/chat') {
+      setActiveView('chat')
+      return true
+    }
+    if (pathname === '/mypage') {
+      setActiveView('mypage')
+      void loadMyStudies()
+      void loadMyStudyHistoryPages()
+      return true
+    }
+    return false
   }
 
   function searchPosts(keyword: string) {
@@ -2033,7 +2073,7 @@ function App() {
               className={activeView === item.id ? 'nav-item active' : 'nav-item'}
               key={item.id}
               type="button"
-              onClick={() => setActiveView(item.id)}
+              onClick={() => navigateWorkspace(item.id)}
               aria-label={item.label}
             >
               <item.icon size={18} />
@@ -2096,7 +2136,7 @@ function App() {
                   <button
                     type="button"
                     onClick={() => {
-                      setActiveView('mypage')
+                      navigateWorkspace('mypage')
                       setShowProfileMenu(false)
                       void loadMyStudies()
                       void loadMyStudyHistoryPages()
@@ -2191,7 +2231,7 @@ function App() {
               <button
                 className="primary"
                 type="button"
-                onClick={() => setActiveView(activeLobbySlide.view)}
+                onClick={() => navigateWorkspace(activeLobbySlide.view)}
               >
                 <ActiveLobbyIcon size={17} />
                 {activeLobbySlide.label}
