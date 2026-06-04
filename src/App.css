@@ -2299,6 +2299,8 @@ textarea[aria-invalid="true"] {
 
 .room-list-item {
   min-width: 0;
+  display: grid;
+  gap: 4px;
   justify-content: flex-start;
   padding: 6px;
   color: #191f28;
@@ -2306,9 +2308,47 @@ textarea[aria-invalid="true"] {
   text-align: left;
 }
 
-.room-list-item span {
-  color: #6b7684;
+.room-title-line {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.room-title-line strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-unread-badge {
+  min-width: 20px;
+  height: 20px;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  padding: 0 6px;
+  border-radius: 999px;
+  color: #ffffff;
+  background: #24272d;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.room-last-message {
+  min-width: 0;
+  overflow: hidden;
+  color: #4e5968;
   font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-meta-line {
+  color: #6b7684;
+  font-size: 12px;
 }
 
 .room-delete-button {
