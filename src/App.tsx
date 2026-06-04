@@ -144,8 +144,16 @@ type CommunityRoute = {
   postId?: number
 }
 
+type StudyRoute = {
+  studyId?: number
+}
+
 function communityPath(boardId: CommunityBoardId, postId?: number) {
   return postId ? `/community/${boardId}/${postId}` : `/community/${boardId}`
+}
+
+function studyPath(studyId?: number) {
+  return studyId ? `/studies/${studyId}` : '/studies'
 }
 
 function parseCommunityRoute(pathname: string): CommunityRoute | null {
@@ -157,6 +165,15 @@ function parseCommunityRoute(pathname: string): CommunityRoute | null {
   const postId = Number(parts[2])
   if (!Number.isInteger(postId) || postId <= 0) return null
   return { boardId: board.id, postId }
+}
+
+function parseStudyRoute(pathname: string): StudyRoute | null {
+  const parts = pathname.split('/').filter(Boolean)
+  if (parts[0] !== 'studies') return null
+  if (parts[1] == null) return {}
+  const studyId = Number(parts[1])
+  if (!Number.isInteger(studyId) || studyId <= 0) return null
+  return { studyId }
 }
 
 function notificationKey(item: NotificationItem) {
@@ -548,13 +565,13 @@ function App() {
   useEffect(() => {
     if (!canConnect || needsSignup) return undefined
 
-    applyCommunityRoute()
-    function applyCurrentCommunityRoute() {
-      applyCommunityRoute()
+    applyAppRoute()
+    function applyCurrentRoute() {
+      applyAppRoute()
     }
 
-    window.addEventListener('popstate', applyCurrentCommunityRoute)
-    return () => window.removeEventListener('popstate', applyCurrentCommunityRoute)
+    window.addEventListener('popstate', applyCurrentRoute)
+    return () => window.removeEventListener('popstate', applyCurrentRoute)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken, canConnect, needsSignup])
 
@@ -1019,10 +1036,13 @@ function App() {
     return scope === 'active' ? activeHistoryPage : pastHistoryPage
   }
 
-  async function selectStudy(studyId: number) {
+  async function selectStudy(studyId: number, options: { pushRoute?: boolean } = {}) {
     try {
       const item = await fetchStudy(studyId, accessToken.trim())
       setSelectedStudy(item)
+      if (options.pushRoute !== false) {
+        pushStudyRoute(item.id)
+      }
       if (item.ownedByRequester) {
         await loadStudyJoinRequests(item.id)
       } else {
@@ -1054,7 +1074,7 @@ function App() {
 
   async function toggleStudyDetail(studyId: number) {
     if (selectedStudy?.id === studyId) {
-      setSelectedStudy(null)
+      closeStudyDetail()
       return
     }
     await selectStudy(studyId)
@@ -1200,7 +1220,7 @@ function App() {
         await loadStudyJoinRequests(studyId)
       }
       if (action === 'close' || action === 'end' || action === 'delete' || action === 'hideHistory') {
-        setSelectedStudy(null)
+        closeStudyDetail()
       } else if (wasSelected) {
         await selectStudy(studyId)
       }
@@ -1436,6 +1456,21 @@ function App() {
     }
   }
 
+  function pushStudyRoute(studyId?: number) {
+    const nextPath = studyPath(studyId)
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState(null, '', nextPath)
+    }
+  }
+
+  function closeStudyDetail() {
+    setSelectedStudy(null)
+    setStudyJoinRequests([])
+    if (parseStudyRoute(window.location.pathname)?.studyId != null) {
+      pushStudyRoute()
+    }
+  }
+
   function applyPostLoginRedirect() {
     const redirectPath = pendingPostLoginRedirectRef.current
     if (!redirectPath) return
@@ -1446,12 +1481,17 @@ function App() {
     if (`${window.location.pathname}${window.location.search}` !== nextPath) {
       window.history.replaceState(null, '', nextPath)
     }
-    applyCommunityRoute(redirectUrl.pathname)
+    applyAppRoute(redirectUrl.pathname)
+  }
+
+  function applyAppRoute(pathname = window.location.pathname) {
+    if (applyCommunityRoute(pathname)) return
+    applyStudyRoute(pathname)
   }
 
   function applyCommunityRoute(pathname = window.location.pathname) {
     const route = parseCommunityRoute(pathname)
-    if (!route) return
+    if (!route) return false
 
     setActiveView('posts')
     setSelectedCommunityBoard(route.boardId)
@@ -1464,11 +1504,35 @@ function App() {
       setComments([])
       setPostBoardMode('list')
       void loadPosts(route.boardId, 0, '')
-      return
+      return true
     }
 
     void loadPosts(route.boardId, 0, '')
     void selectPost(route.postId, { pushRoute: false })
+    return true
+  }
+
+  function applyStudyRoute(pathname = window.location.pathname) {
+    const route = parseStudyRoute(pathname)
+    if (!route) return false
+
+    setActiveView('studies')
+    setStudyBoardMode('list')
+    setEditingStudyId(null)
+    setStudyForm(emptyStudyForm)
+    setStudyFormErrors({})
+    setStudyListScope('recruiting')
+
+    if (route.studyId == null) {
+      setSelectedStudy(null)
+      setStudyJoinRequests([])
+      void loadStudies('', 0)
+      return true
+    }
+
+    void loadStudies('', 0)
+    void selectStudy(route.studyId, { pushRoute: false })
+    return true
   }
 
   function searchPosts(keyword: string) {
@@ -2630,7 +2694,7 @@ function App() {
       <div
         className="modal-backdrop"
         role="presentation"
-        onMouseDown={() => setSelectedStudy(null)}
+        onMouseDown={closeStudyDetail}
       >
         <section
           className="account-modal study-detail-modal"
@@ -2647,7 +2711,7 @@ function App() {
             <button
               className="icon-button"
               type="button"
-              onClick={() => setSelectedStudy(null)}
+              onClick={closeStudyDetail}
               aria-label="스터디 상세 닫기"
               title="닫기"
             >
