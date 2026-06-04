@@ -141,6 +141,7 @@ const lobbySlideCount = 3
 
 type CommunityRoute = {
   boardId: CommunityBoardId
+  mode: 'list' | 'write' | 'detail' | 'edit'
   postId?: number
 }
 
@@ -154,6 +155,14 @@ type ChatRoute = {
 
 function communityPath(boardId: CommunityBoardId, postId?: number) {
   return postId ? `/community/${boardId}/${postId}` : `/community/${boardId}`
+}
+
+function communityWritePath(boardId: CommunityBoardId) {
+  return `/community/${boardId}/write`
+}
+
+function communityEditPath(boardId: CommunityBoardId, postId: number) {
+  return `/community/${boardId}/${postId}/edit`
 }
 
 function studyPath(studyId?: number) {
@@ -178,10 +187,17 @@ function parseCommunityRoute(pathname: string): CommunityRoute | null {
   if (parts[0] !== 'community') return null
   const board = communityBoards.find((item) => item.id === parts[1])
   if (!board) return null
-  if (parts[2] == null) return { boardId: board.id }
+  if (parts[2] == null) return { boardId: board.id, mode: 'list' }
+  if (parts[2] === 'write' && parts[3] == null) {
+    return { boardId: board.id, mode: 'write' }
+  }
   const postId = Number(parts[2])
   if (!Number.isInteger(postId) || postId <= 0) return null
-  return { boardId: board.id, postId }
+  if (parts[3] == null) return { boardId: board.id, mode: 'detail', postId }
+  if (parts[3] === 'edit' && parts[4] == null) {
+    return { boardId: board.id, mode: 'edit', postId }
+  }
+  return null
 }
 
 function parseStudyRoute(pathname: string): StudyRoute | null {
@@ -1479,6 +1495,20 @@ function App() {
     }
   }
 
+  function pushCommunityWriteRoute(boardId: CommunityBoardId) {
+    const nextPath = communityWritePath(boardId)
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState(null, '', nextPath)
+    }
+  }
+
+  function pushCommunityEditRoute(boardId: CommunityBoardId, postId: number) {
+    const nextPath = communityEditPath(boardId, postId)
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState(null, '', nextPath)
+    }
+  }
+
   function pushWorkspaceRoute(view: WorkspaceView) {
     const nextPath = workspacePath(view, selectedCommunityBoard)
     if (window.location.pathname !== nextPath) {
@@ -1554,7 +1584,7 @@ function App() {
     setPostForm(emptyPostForm)
     setPostSearchKeyword('')
 
-    if (route.postId == null) {
+    if (route.mode === 'list') {
       setSelectedPost(null)
       setComments([])
       setPostBoardMode('list')
@@ -1562,8 +1592,19 @@ function App() {
       return true
     }
 
+    if (route.mode === 'write') {
+      openPostCreateEditor(route.boardId, { pushRoute: false })
+      return true
+    }
+
     void loadPosts(route.boardId, 0, '')
-    void selectPost(route.postId, { pushRoute: false })
+    if (route.mode === 'edit' && route.postId != null) {
+      void openPostEditEditor(route.postId, { pushRoute: false })
+      return true
+    }
+    if (route.postId != null) {
+      void selectPost(route.postId, { pushRoute: false })
+    }
     return true
   }
 
@@ -1692,6 +1733,10 @@ function App() {
     }
   }
 
+  function canManagePost(post: PostItem) {
+    return post.ownedByRequester === true || (post.boardType === 'NOTICE' && isAdmin)
+  }
+
   async function selectPost(postId: number, options: { pushRoute?: boolean } = {}) {
     try {
       const [post, postComments] = await Promise.all([
@@ -1708,6 +1753,70 @@ function App() {
       }
     } catch (error) {
       reportRequestError(error, '글 상세를 불러오지 못했습니다.')
+    }
+  }
+
+  function openPostCreateEditor(
+    boardId: CommunityBoardId = selectedCommunityBoard,
+    options: { pushRoute?: boolean } = {},
+  ) {
+    setSelectedCommunityBoard(boardId)
+    if (communityBoardType(boardId) === 'NOTICE' && !isAdmin) {
+      setSelectedPost(null)
+      setEditingPostId(null)
+      setPostForm(emptyPostForm)
+      setComments([])
+      setPostBoardMode('list')
+      pushCommunityRoute(boardId)
+      void loadPosts(boardId, 0, '')
+      showToast('error', '공지사항은 관리자만 작성할 수 있습니다.')
+      return
+    }
+
+    setSelectedPost(null)
+    setEditingPostId(null)
+    setPostForm(emptyPostForm)
+    setComments([])
+    setCommentText('')
+    setReplyDrafts({})
+    setEditingCommentId(null)
+    setCommentEditText('')
+    setPostBoardMode('write')
+    if (options.pushRoute !== false) {
+      pushCommunityWriteRoute(boardId)
+    }
+  }
+
+  async function openPostEditEditor(postId: number, options: { pushRoute?: boolean } = {}) {
+    try {
+      const [post, postComments] = await Promise.all([
+        fetchPost(postId, accessToken.trim()),
+        fetchComments(postId, accessToken.trim()),
+      ])
+      const boardId = communityBoardId(post.boardType)
+      setSelectedCommunityBoard(boardId)
+      setSelectedPost(post)
+      setComments(postComments)
+
+      if (!canManagePost(post)) {
+        setEditingPostId(null)
+        setPostForm(emptyPostForm)
+        setPostBoardMode('detail')
+        if (options.pushRoute !== false) {
+          pushCommunityRoute(boardId, post.id)
+        }
+        showToast('error', '수정 권한이 없습니다.')
+        return
+      }
+
+      setEditingPostId(post.id)
+      setPostForm({ title: post.title, content: post.content })
+      setPostBoardMode('write')
+      if (options.pushRoute !== false) {
+        pushCommunityEditRoute(boardId, post.id)
+      }
+    } catch (error) {
+      reportRequestError(error, '글 수정 화면을 불러오지 못했습니다.')
     }
   }
 
@@ -1759,24 +1868,21 @@ function App() {
   }
 
   function beginEditPost(post: PostItem) {
-    setSelectedCommunityBoard(communityBoardId(post.boardType))
+    const boardId = communityBoardId(post.boardType)
+    setSelectedCommunityBoard(boardId)
     setSelectedPost(post)
+    if (!canManagePost(post)) {
+      showToast('error', '수정 권한이 없습니다.')
+      return
+    }
     setEditingPostId(post.id)
     setPostForm({ title: post.title, content: post.content })
     setPostBoardMode('write')
+    pushCommunityEditRoute(boardId, post.id)
   }
 
   function beginCreatePost() {
-    setSelectedPost(null)
-    setEditingPostId(null)
-    setPostForm(emptyPostForm)
-    setComments([])
-    setCommentText('')
-    setReplyDrafts({})
-    setEditingCommentId(null)
-    setCommentEditText('')
-    setPostBoardMode('write')
-    pushCommunityRoute(selectedCommunityBoard)
+    openPostCreateEditor(selectedCommunityBoard)
   }
 
   async function submitComment() {
@@ -3379,9 +3485,7 @@ function App() {
     const selectedBoard = communityBoards.find((board) => board.id === selectedCommunityBoard)
     const selectedBoardLabel = selectedBoard?.label ?? '자유게시판'
     const canWriteSelectedBoard = selectedBoard?.boardType !== 'NOTICE' || isAdmin
-    const canManageSelectedPost =
-      selectedPost != null &&
-      (selectedPost.ownedByRequester === true || (selectedPost.boardType === 'NOTICE' && isAdmin))
+    const canManageSelectedPost = selectedPost != null && canManagePost(selectedPost)
     const isWritingPost = postBoardMode === 'write'
     const isViewingPost = postBoardMode === 'detail'
 
@@ -3566,10 +3670,15 @@ function App() {
                 <button
                   type="button"
                   onClick={() => {
-                    setPostBoardMode(editingPostId && selectedPost ? 'detail' : 'list')
+                    const editingExistingPost = editingPostId != null && selectedPost != null
+                    setPostBoardMode(editingExistingPost ? 'detail' : 'list')
                     setEditingPostId(null)
                     setPostForm(emptyPostForm)
-                    if (!editingPostId) pushCommunityRoute(selectedCommunityBoard)
+                    if (editingExistingPost && selectedPost) {
+                      pushCommunityRoute(communityBoardId(selectedPost.boardType), selectedPost.id)
+                    } else {
+                      pushCommunityRoute(selectedCommunityBoard)
+                    }
                   }}
                 >
                   취소
