@@ -148,6 +148,10 @@ type StudyRoute = {
   studyId?: number
 }
 
+type ChatRoute = {
+  roomId?: number
+}
+
 function communityPath(boardId: CommunityBoardId, postId?: number) {
   return postId ? `/community/${boardId}/${postId}` : `/community/${boardId}`
 }
@@ -156,11 +160,15 @@ function studyPath(studyId?: number) {
   return studyId ? `/studies/${studyId}` : '/studies'
 }
 
+function chatPath(roomId?: number) {
+  return roomId ? `/chat/${roomId}` : '/chat'
+}
+
 function workspacePath(view: WorkspaceView, boardId: CommunityBoardId = 'free') {
   if (view === 'lobby') return '/'
   if (view === 'studies') return studyPath()
   if (view === 'posts') return communityPath(boardId)
-  if (view === 'chat') return '/chat'
+  if (view === 'chat') return chatPath()
   if (view === 'mypage') return '/mypage'
   return '/'
 }
@@ -183,6 +191,15 @@ function parseStudyRoute(pathname: string): StudyRoute | null {
   const studyId = Number(parts[1])
   if (!Number.isInteger(studyId) || studyId <= 0) return null
   return { studyId }
+}
+
+function parseChatRoute(pathname: string): ChatRoute | null {
+  const parts = pathname.split('/').filter(Boolean)
+  if (parts[0] !== 'chat') return null
+  if (parts[1] == null) return {}
+  const roomId = Number(parts[1])
+  if (!Number.isInteger(roomId) || roomId <= 0) return null
+  return { roomId }
 }
 
 function notificationKey(item: NotificationItem) {
@@ -1095,7 +1112,6 @@ function App() {
       const room = await createStudyChatRoom(accessToken.trim(), studyId)
       setSelectedStudy(null)
       setStudyJoinRequests([])
-      navigateWorkspace('chat')
       await loadChatRooms()
       await loadChatMessages(room.id)
       appendLog('스터디 채팅방 준비 완료')
@@ -1110,7 +1126,6 @@ function App() {
       const room = await createPrivateChatRoom(accessToken.trim(), targetMemberId)
       setSelectedStudy(null)
       setStudyJoinRequests([])
-      navigateWorkspace('chat')
       await loadChatRooms()
       await loadChatMessages(room.id)
       appendLog('1:1 채팅방 준비 완료')
@@ -1346,7 +1361,6 @@ function App() {
     void markNotificationReadLocally(item)
 
     if (item.targetType === 'CHAT_ROOM') {
-      navigateWorkspace('chat')
       await loadChatRooms()
       await loadChatMessages(item.targetId)
       return
@@ -1472,9 +1486,27 @@ function App() {
     }
   }
 
+  function clearChatSelection() {
+    disconnectRealtime()
+    setRoomId('')
+    setChatMessages([])
+    setChatMembers([])
+    setShowChatMembers(false)
+  }
+
   function navigateWorkspace(view: WorkspaceView) {
     setActiveView(view)
+    if (view === 'chat') {
+      clearChatSelection()
+    }
     pushWorkspaceRoute(view)
+  }
+
+  function pushChatRoute(roomIdValue?: number) {
+    const nextPath = chatPath(roomIdValue)
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState(null, '', nextPath)
+    }
   }
 
   function pushStudyRoute(studyId?: number) {
@@ -1508,6 +1540,7 @@ function App() {
   function applyAppRoute(pathname = window.location.pathname) {
     if (applyCommunityRoute(pathname)) return
     if (applyStudyRoute(pathname)) return
+    if (applyChatRoute(pathname)) return
     applyWorkspaceRoute(pathname)
   }
 
@@ -1557,13 +1590,25 @@ function App() {
     return true
   }
 
+  function applyChatRoute(pathname = window.location.pathname) {
+    const route = parseChatRoute(pathname)
+    if (!route) return false
+
+    setActiveView('chat')
+    if (route.roomId == null) {
+      clearChatSelection()
+      void loadChatRooms()
+      return true
+    }
+
+    void loadChatRooms()
+    void loadChatMessages(route.roomId, { pushRoute: false })
+    return true
+  }
+
   function applyWorkspaceRoute(pathname = window.location.pathname) {
     if (pathname === '/') {
       setActiveView('lobby')
-      return true
-    }
-    if (pathname === '/chat') {
-      setActiveView('chat')
       return true
     }
     if (pathname === '/mypage') {
@@ -1801,10 +1846,15 @@ function App() {
     }
   }
 
-  async function loadChatMessages(roomIdValue: number) {
+  async function loadChatMessages(roomIdValue: number, options: { pushRoute?: boolean } = {}) {
     if (!requireAuthenticated('채팅방')) return
+    const shouldPushRoute = options.pushRoute !== false
     try {
       disconnectRealtime()
+      setActiveView('chat')
+      if (shouldPushRoute) {
+        pushChatRoute(roomIdValue)
+      }
       setRoomId(String(roomIdValue))
       setShowChatMembers(false)
       const messages = await fetchChatMessages(accessToken.trim(), roomIdValue)
@@ -1826,7 +1876,10 @@ function App() {
       connectRealtime(roomIdValue)
       appendLog(`채팅 메시지 ${messages.length}개 동기화`)
     } catch (error) {
-      setChatMembers([])
+      clearChatSelection()
+      if (parseChatRoute(window.location.pathname)?.roomId === roomIdValue) {
+        pushChatRoute()
+      }
       reportRequestError(error, '채팅방을 불러오지 못했습니다.')
     }
   }
@@ -1836,11 +1889,10 @@ function App() {
     try {
       await deleteChatRoom(accessToken.trim(), targetRoom.id)
       if (roomId === String(targetRoom.id)) {
-        disconnectRealtime()
-        setRoomId('')
-        setChatMessages([])
-        setChatMembers([])
-        setShowChatMembers(false)
+        clearChatSelection()
+        if (parseChatRoute(window.location.pathname)?.roomId === targetRoom.id) {
+          pushChatRoute()
+        }
       }
       await loadChatRooms()
       appendLog('채팅방 삭제 완료')
