@@ -1393,6 +1393,35 @@ textarea[aria-invalid="true"] {
   background: #ffffff;
 }
 
+.report-filter-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.report-filter-tabs button {
+  min-height: 36px;
+  padding: 0 10px;
+  color: #4e5968;
+  background: #f2f4f6;
+  transition:
+    transform 150ms ease,
+    color 150ms ease,
+    background 150ms ease;
+}
+
+.report-filter-tabs button:hover {
+  transform: translateY(-1px);
+  color: #191f28;
+  background: #e5e8eb;
+}
+
+.report-filter-tabs button.active {
+  color: #ffffff;
+  background: #24272d;
+}
+
 .report-list {
   display: grid;
   gap: 10px;
@@ -1431,9 +1460,42 @@ textarea[aria-invalid="true"] {
   margin-bottom: 7px;
 }
 
+.report-row-title {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+}
+
 .report-row-header strong {
   color: #191f28;
   font-size: 14px;
+}
+
+.report-status {
+  min-height: 22px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.report-status.pending {
+  color: #1c5f94;
+  background: #eaf4ff;
+}
+
+.report-status.resolved {
+  color: #067647;
+  background: #e9f8ef;
+}
+
+.report-status.rejected {
+  color: #b42318;
+  background: #fff1ef;
 }
 
 .report-row-header span,
@@ -3076,6 +3138,10 @@ textarea[aria-invalid="true"] {
   }
 
   .study-scope-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .report-filter-tabs {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
