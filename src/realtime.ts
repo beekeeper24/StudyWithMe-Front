@@ -25,7 +25,7 @@ export function createRealtimeClient(
     onConnect: () => {
       handlers.onConnect()
       if (roomId.trim()) {
-        client.subscribe(`/topic/chat.rooms.${roomId.trim()}`, (frame) => {
+        client.subscribe(`/user/queue/chat.rooms.${roomId.trim()}`, (frame) => {
           handlers.onChatMessage(JSON.parse(frame.body) as ChatMessage)
         })
       }
