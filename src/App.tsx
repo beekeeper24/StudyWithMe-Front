@@ -2037,6 +2037,7 @@ function App() {
       setShowChatMembers(false)
       const messages = await fetchChatMessages(accessToken.trim(), roomIdValue)
       setChatMessages(messages)
+      void loadChatRooms()
       try {
         const members = await fetchChatRoomMembers(accessToken.trim(), roomIdValue)
         setChatMembers(members)
@@ -3980,10 +3981,16 @@ function App() {
                       className="room-list-item"
                       type="button"
                       onClick={() => loadChatMessages(room.id)}
-	                    >
-	                      <strong>{chatRoomTitle(room, knownStudies)}</strong>
-	                      <span>{chatRoomMeta(room, knownStudies)}</span>
-	                    </button>
+                    >
+                      <span className="room-title-line">
+                        <strong>{chatRoomTitle(room, knownStudies)}</strong>
+                        {room.unreadCount != null && room.unreadCount > 0 && (
+                          <span className="room-unread-badge">{room.unreadCount}</span>
+                        )}
+                      </span>
+                      <span className="room-last-message">{chatRoomPreview(room)}</span>
+                      <span className="room-meta-line">{chatRoomMeta(room, knownStudies)}</span>
+                    </button>
                     <button
                       className="room-delete-button"
                       type="button"
@@ -4507,15 +4514,21 @@ function chatRoomTitle(room: ChatRoom, studies: StudyItem[]) {
 }
 
 function chatRoomMeta(room: ChatRoom, studies: StudyItem[]) {
-  if (room.type === 'PRIVATE') return '1:1'
+  const messageTime = room.lastMessageCreatedAt ? ` · ${formatTime(room.lastMessageCreatedAt)}` : ''
+  if (room.type === 'PRIVATE') return `1:1${messageTime}`
   if (room.type === 'STUDY' && room.studyId) {
     const study = studies.find((item) => item.id === room.studyId)
     if (study && (isStudyEnded(study.status) || isStudyDeleted(study.status))) {
-      return '스터디 · 종료'
+      return `스터디 · 종료${messageTime}`
     }
-    return '스터디'
+    return `스터디${messageTime}`
   }
-  return '채팅'
+  return `채팅${messageTime}`
+}
+
+function chatRoomPreview(room: ChatRoom) {
+  const content = room.lastMessageContent?.trim()
+  return content || '아직 메시지가 없습니다.'
 }
 
 function notificationLabel(item: NotificationItem) {

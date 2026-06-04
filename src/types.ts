@@ -32,6 +32,10 @@ export type ChatRoom = {
   studyId?: number | null
   title?: string | null
   createdAt?: string
+  lastMessageContent?: string | null
+  lastMessageSenderMemberId?: number | null
+  lastMessageCreatedAt?: string | null
+  unreadCount?: number
 }
 
 export type ChatRoomMember = {
