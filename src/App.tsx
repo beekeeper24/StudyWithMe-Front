@@ -2064,7 +2064,7 @@ function App() {
   }
 
   async function removeChatRoom(targetRoom: ChatRoom) {
-    if (!requireAuthenticated('채팅방 삭제')) return
+    if (!requireAuthenticated('채팅방 목록 삭제')) return
     try {
       await deleteChatRoom(accessToken.trim(), targetRoom.id)
       if (roomId === String(targetRoom.id)) {
@@ -2074,10 +2074,10 @@ function App() {
         }
       }
       await loadChatRooms()
-      appendLog('채팅방 삭제 완료')
-      showToast('success', '채팅방이 삭제되었습니다.')
+      appendLog('채팅방 목록 삭제 완료')
+      showToast('success', '채팅방을 내 목록에서 삭제했습니다.')
     } catch (error) {
-      reportRequestError(error, '채팅방을 삭제하지 못했습니다.')
+      reportRequestError(error, '채팅방을 목록에서 삭제하지 못했습니다.')
     }
   }
 
@@ -3995,8 +3995,8 @@ function App() {
                       className="room-delete-button"
                       type="button"
                       onClick={() => removeChatRoom(room)}
-                      aria-label={`${chatRoomTitle(room, knownStudies)} 삭제`}
-                      title="삭제"
+                      aria-label={`${chatRoomTitle(room, knownStudies)} 내 목록에서 삭제`}
+                      title="내 목록에서 삭제"
                     >
                       <Trash2 size={15} />
                     </button>
