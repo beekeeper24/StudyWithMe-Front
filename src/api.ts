@@ -3,6 +3,8 @@ import type {
   AccessTokenResponse,
   AuthProfile,
   CommentItem,
+  ChatMessageReport,
+  ChatMessageReportStatus,
   ChatMessage,
   ChatRoom,
   ChatRoomMember,
@@ -180,6 +182,38 @@ export async function deleteChatMessage(
 ): Promise<ChatMessage> {
   return request<ChatMessage>(`/api/v1/chat/rooms/${roomId}/messages/${messageId}`, accessToken, {
     method: 'DELETE',
+  })
+}
+
+export async function reportChatMessage(
+  accessToken: string,
+  roomId: number,
+  messageId: number,
+  reason: string,
+): Promise<ChatMessageReport> {
+  return request<ChatMessageReport>(`/api/v1/chat/rooms/${roomId}/messages/${messageId}/reports`, accessToken, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  })
+}
+
+export async function fetchChatMessageReports(
+  accessToken: string,
+  status?: ChatMessageReportStatus,
+): Promise<ChatMessageReport[]> {
+  const query = status ? `?status=${status}` : ''
+  return request<ChatMessageReport[]>(`/api/v1/admin/chat-message-reports${query}`, accessToken)
+}
+
+export async function handleChatMessageReport(
+  accessToken: string,
+  reportId: number,
+  status: Exclude<ChatMessageReportStatus, 'PENDING'>,
+  handlingNote = '',
+): Promise<ChatMessageReport> {
+  return request<ChatMessageReport>(`/api/v1/admin/chat-message-reports/${reportId}/handle`, accessToken, {
+    method: 'POST',
+    body: JSON.stringify({ status, handlingNote }),
   })
 }
 
