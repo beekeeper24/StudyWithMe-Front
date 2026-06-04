@@ -4,9 +4,13 @@
 
 Use the main Codex flow by default. Add harnesses only when they clearly reduce risk, add review value, or enable useful parallel work.
 
+- Available skills may still be used when the user names them or when the task clearly matches their purpose. This file defines project-specific routing preferences, thresholds, and restrictions; it is not an allow-list of the only usable skills.
 - Oh My Codex is available as an orchestration layer, but it is not the default execution path for ordinary work.
 - Use Codex main flow for normal implementation, debugging, review, and documentation unless there is a concrete reason to add a harness or sub-agent.
 - Use OMX team/orchestration only when work can be split into independent implementation, review, research, or verification tracks without creating file conflicts and the parallelism or second review is worth the overhead.
+- Use Superpowers `subagent-driven-development` when a reviewable deliverable already has at least two independent checkbox tasks, file-conflict risk is low, and implementer/reviewer separation would add real quality or speed.
+- Keep strongly coupled flows in Codex main flow with TDD when steps depend tightly on one another, such as DB shape -> service contract -> API response -> frontend type/UI.
+- Use Superpowers `executing-plans` when there is a written implementation plan to follow task-by-task but subagent coordination is unavailable or not worth the overhead.
 - Keep simple tasks in the main Codex flow. Do not add orchestration overhead for trivial edits, typo fixes, formatting-only changes, or clear one-file fixes.
 - If the active runtime blocks sub-agent or team execution, state the constraint briefly and continue with the best available harness fallback.
 - Use normal Codex flow for trivial edits, typo fixes, formatting-only changes, and clear one-file fixes; still verify before completion when feasible.
@@ -36,7 +40,7 @@ Use harnesses together only when they cover genuinely different parts of the wor
 - New feature or behavior change:
   - Use Superpowers `brainstorming` or `writing-plans` to shape the approach when the feature goal is clear enough to plan implementation.
   - Use OMX `deep-interview` first only when the feature goal, boundaries, or acceptance criteria are still unclear.
-  - Use OMX team/orchestration only if implementation, tests, docs, and review can be split safely and the parallel/review value is clear.
+  - Use Superpowers `subagent-driven-development` or OMX team/orchestration only if implementation, tests, docs, and review can be split safely and the parallel/review value is clear.
   - Use main Codex for final integration and verification.
 - High-risk frontend logic:
   - Use Superpowers `test-driven-development`.
@@ -77,7 +81,7 @@ Do not use orchestration when it would create file conflicts, duplicate the same
 - Prefer simple, conventional React and TypeScript patterns before clever abstractions.
 - Follow the existing app structure and CSS patterns unless a feature clearly needs extraction.
 - Do not run every workflow every time.
-- Choose the lightest safe workflow that covers the task risk.
+- Choose the most practical efficient workflow for the task: enough planning, TDD, review, or subagent support to reduce rework and risk, without adding ceremony that does not improve the outcome.
 - Check `git status` before edits.
 - Never revert existing user changes unless the user explicitly asks.
 - Work from the current state of the tree; do not reset or discard user work.
@@ -114,7 +118,7 @@ Do not use orchestration when it would create file conflicts, duplicate the same
 
 For meaningful work, use this loop:
 
-1. Route the task through the lightest suitable harness.
+1. Route the task through the most practical efficient workflow, using the project's harness criteria.
 2. Implement or investigate.
 3. Verify with tests, build, lint, local browser checks, Playwright if configured, or runtime checks as appropriate.
 4. Run gstack `cso` / `/cso` when the change affects OAuth2, authentication, authorization, secrets, deployment security, data exposure, chat access control, notification fan-out, or WebSocket security.
