@@ -4075,6 +4075,9 @@ function App() {
                         <span>{formatTime(item.createdAt)}</span>
                       </div>
                       <p>{item.content}</p>
+                      {item.senderMemberId === activeProfileMemberId && (
+                        <span className="message-read-state">{chatMessageReadLabel(item)}</span>
+                      )}
                     </div>
                   </article>
                 ))
@@ -4529,6 +4532,11 @@ function chatRoomMeta(room: ChatRoom, studies: StudyItem[]) {
 function chatRoomPreview(room: ChatRoom) {
   const content = room.lastMessageContent?.trim()
   return content || '아직 메시지가 없습니다.'
+}
+
+function chatMessageReadLabel(message: ChatMessage) {
+  const readCount = message.readMemberCount ?? 0
+  return readCount > 0 ? `읽음 ${readCount}` : '읽지 않음'
 }
 
 function notificationLabel(item: NotificationItem) {

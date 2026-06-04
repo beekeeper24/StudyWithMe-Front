@@ -2492,6 +2492,14 @@ textarea[aria-invalid="true"] {
   overflow-wrap: anywhere;
 }
 
+.message-read-state {
+  display: inline-block;
+  margin-top: 5px;
+  color: #8b95a1;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .composer {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 46px;
