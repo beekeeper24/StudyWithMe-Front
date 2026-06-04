@@ -25,6 +25,7 @@ export type ChatMessage = {
   content: string
   createdAt?: string
   readMemberCount?: number
+  deleted?: boolean
 }
 
 export type ChatRoom = {

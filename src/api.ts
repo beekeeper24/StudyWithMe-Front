@@ -173,6 +173,16 @@ export async function fetchChatMessages(
   return request<ChatMessage[]>(`/api/v1/chat/rooms/${roomId}/messages`, accessToken)
 }
 
+export async function deleteChatMessage(
+  accessToken: string,
+  roomId: number,
+  messageId: number,
+): Promise<ChatMessage> {
+  return request<ChatMessage>(`/api/v1/chat/rooms/${roomId}/messages/${messageId}`, accessToken, {
+    method: 'DELETE',
+  })
+}
+
 export async function fetchChatRoomMembers(
   accessToken: string,
   roomId: number,
