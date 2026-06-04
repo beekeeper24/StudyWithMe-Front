@@ -22,6 +22,8 @@ Update it when report, admin notification, or moderation navigation behavior cha
 - Report rows show reporter, reported member, and handler nicknames when available.
 - Missing member nicknames are displayed as a safe withdrawn-member fallback instead of making numeric ids the primary UI label.
 - The report reason and original message content are separated into their own blocks so admins can review the context quickly.
+- Handling actions open a modal instead of immediately mutating the report.
+- Admin handling notes are optional, limited to 500 characters, and displayed in handled report history when present.
 
 ## Admin Notification Navigation
 

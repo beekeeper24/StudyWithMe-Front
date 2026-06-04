@@ -348,6 +348,10 @@ type StudyAction = 'join' | 'leave' | 'close' | 'end' | 'delete' | 'hideHistory'
 type PostBoardMode = 'list' | 'detail' | 'write'
 type ToastKind = 'success' | 'error' | 'info'
 type ChatReportFilter = ChatMessageReportStatus | 'ALL'
+type ChatReportHandlingTarget = {
+  report: ChatMessageReport
+  nextStatus: Exclude<ChatMessageReportStatus, 'PENDING'>
+}
 type ToastMessage = {
   id: number
   kind: ToastKind
@@ -385,6 +389,8 @@ function App() {
   const [chatReportReason, setChatReportReason] = useState('')
   const [isChatReportSubmitting, setIsChatReportSubmitting] = useState(false)
   const [handlingChatReportId, setHandlingChatReportId] = useState<number | null>(null)
+  const [chatReportHandlingTarget, setChatReportHandlingTarget] = useState<ChatReportHandlingTarget | null>(null)
+  const [chatReportHandlingNote, setChatReportHandlingNote] = useState('')
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [studies, setStudies] = useState<StudyItem[]>([])
   const [myStudyHistory, setMyStudyHistory] = useState<StudyHistory>(emptyStudyHistory)
@@ -824,6 +830,8 @@ function App() {
     setChatReportReason('')
     setIsChatReportSubmitting(false)
     setHandlingChatReportId(null)
+    setChatReportHandlingTarget(null)
+    setChatReportHandlingNote('')
     setStudies([])
     setMyStudyHistory(emptyStudyHistory)
     setActiveHistoryItems([])
@@ -2239,6 +2247,20 @@ function App() {
     setChatReportReason('')
   }
 
+  function openChatReportHandlingModal(
+    report: ChatMessageReport,
+    nextStatus: Exclude<ChatMessageReportStatus, 'PENDING'>,
+  ) {
+    setChatReportHandlingTarget({ report, nextStatus })
+    setChatReportHandlingNote('')
+  }
+
+  function closeChatReportHandlingModal() {
+    if (handlingChatReportId != null) return
+    setChatReportHandlingTarget(null)
+    setChatReportHandlingNote('')
+  }
+
   async function submitChatReport() {
     if (!requireAuthenticated('메시지 신고')) return
     if (!roomId || !reportingChatMessage?.id) return
@@ -2260,16 +2282,20 @@ function App() {
     }
   }
 
-  async function resolveChatReport(reportId: number, nextStatus: 'RESOLVED' | 'REJECTED') {
+  async function resolveChatReport() {
     if (!requireAuthenticated('채팅 신고 처리')) return
     if (!isAdmin) return
+    if (!chatReportHandlingTarget) return
+    const { report, nextStatus } = chatReportHandlingTarget
+    const reportId = report.id
+    const handlingNote = chatReportHandlingNote.trim()
     try {
       setHandlingChatReportId(reportId)
       const handledReport = await handleChatMessageReport(
         accessToken.trim(),
         reportId,
         nextStatus,
-        nextStatus === 'RESOLVED' ? '처리 완료' : '기각',
+        handlingNote,
       )
       setChatReports((current) => {
         if (chatReportFilter === 'PENDING') {
@@ -2280,6 +2306,8 @@ function App() {
         }
         return current.filter((item) => item.id !== reportId)
       })
+      setChatReportHandlingTarget(null)
+      setChatReportHandlingNote('')
       showToast('success', nextStatus === 'RESOLVED' ? '신고를 처리했습니다.' : '신고를 기각했습니다.')
     } catch (error) {
       reportRequestError(error, '채팅 신고를 처리하지 못했습니다.')
@@ -2525,6 +2553,7 @@ function App() {
         {renderStudyDetailModal()}
         {showAccountManagementModal && renderAccountManagementModal()}
         {reportingChatMessage && renderChatReportModal()}
+        {chatReportHandlingTarget && renderChatReportHandlingModal()}
         {studyConfirmAction && renderStudyConfirmModal()}
         {commentDeleteTarget && renderCommentDeleteConfirmModal()}
       </main>
@@ -3424,12 +3453,18 @@ function App() {
                       {report.handledAt ? ` · ${formatTime(report.handledAt)}` : ''}
                     </span>
                   )}
+                  {report.status !== 'PENDING' && report.handlingNote && (
+                    <div className="report-content-block note">
+                      <span>처리 메모</span>
+                      <p>{report.handlingNote}</p>
+                    </div>
+                  )}
                 </div>
                 {report.status === 'PENDING' && (
                   <div className="report-row-actions">
                     <button
                       type="button"
-                      onClick={() => resolveChatReport(report.id, 'REJECTED')}
+                      onClick={() => openChatReportHandlingModal(report, 'REJECTED')}
                       disabled={handlingChatReportId === report.id}
                     >
                       기각
@@ -3437,7 +3472,7 @@ function App() {
                     <button
                       className="primary"
                       type="button"
-                      onClick={() => resolveChatReport(report.id, 'RESOLVED')}
+                      onClick={() => openChatReportHandlingModal(report, 'RESOLVED')}
                       disabled={handlingChatReportId === report.id}
                     >
                       처리 완료
@@ -3713,6 +3748,87 @@ function App() {
                 disabled={isChatReportSubmitting || !chatReportReason.trim()}
               >
                 신고
+              </button>
+            </div>
+          </div>
+        </section>
+      </div>
+    )
+  }
+
+  function renderChatReportHandlingModal() {
+    if (!chatReportHandlingTarget) return null
+    const { report, nextStatus } = chatReportHandlingTarget
+    const isResolving = nextStatus === 'RESOLVED'
+    const title = isResolving ? '신고 처리 완료' : '신고 기각'
+    const submitLabel = isResolving ? '처리 완료' : '기각'
+    const isSubmitting = handlingChatReportId === report.id
+
+    return (
+      <div
+        className="modal-backdrop"
+        role="presentation"
+        onMouseDown={closeChatReportHandlingModal}
+      >
+        <section
+          className="account-modal report-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="chat-report-handle-title"
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <div className="account-modal-header">
+            <div>
+              <span className="eyebrow">Admin</span>
+              <h2 id="chat-report-handle-title">{title}</h2>
+            </div>
+            <button
+              className="icon-button"
+              type="button"
+              aria-label="신고 처리 창 닫기"
+              onClick={closeChatReportHandlingModal}
+              disabled={isSubmitting}
+            >
+              <X size={18} />
+            </button>
+          </div>
+          <div className="confirm-modal-body report-modal-body">
+            <div className="report-modal-summary">
+              <div>
+                <span>신고자</span>
+                <strong>{reportMemberName(report.reporterNickname)}</strong>
+              </div>
+              <div>
+                <span>피신고자</span>
+                <strong>{reportMemberName(report.reportedNickname)}</strong>
+              </div>
+            </div>
+            <blockquote>{report.messageContent}</blockquote>
+            <blockquote>{report.reason}</blockquote>
+            <label className="report-reason-field">
+              <span>처리 메모</span>
+              <textarea
+                value={chatReportHandlingNote}
+                onChange={(event) => setChatReportHandlingNote(event.target.value)}
+                maxLength={500}
+                autoFocus
+              />
+            </label>
+            <div className="withdrawal-confirm-actions">
+              <button
+                type="button"
+                onClick={closeChatReportHandlingModal}
+                disabled={isSubmitting}
+              >
+                취소
+              </button>
+              <button
+                className={isResolving ? 'primary-text-button' : 'danger-text-button'}
+                type="button"
+                onClick={resolveChatReport}
+                disabled={isSubmitting}
+              >
+                {submitLabel}
               </button>
             </div>
           </div>
