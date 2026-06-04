@@ -1342,6 +1342,21 @@ textarea[aria-invalid="true"] {
   background: #fff0ee;
 }
 
+.primary-text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  color: #ffffff;
+  border: 1px solid #24272d;
+  background: #24272d;
+}
+
+.primary-text-button:hover:not(:disabled) {
+  border-color: #111318;
+  background: #111318;
+}
+
 .profile-summary-card img {
   width: 52px;
   height: 52px;
@@ -1545,6 +1560,10 @@ textarea[aria-invalid="true"] {
 
 .report-content-block.reason {
   background: #f8fafb;
+}
+
+.report-content-block.note {
+  background: #fffdf5;
 }
 
 .report-content-block p {
@@ -2756,6 +2775,37 @@ textarea[aria-invalid="true"] {
   gap: 12px;
 }
 
+.report-modal-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.report-modal-summary div {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #edf0f3;
+  border-radius: 8px;
+  background: #f8fafb;
+}
+
+.report-modal-summary span {
+  display: block;
+  margin-bottom: 4px;
+  color: #8b95a1;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.report-modal-summary strong {
+  display: block;
+  color: #191f28;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .report-reason-field {
   display: grid;
   gap: 7px;
@@ -3198,7 +3248,8 @@ textarea[aria-invalid="true"] {
   }
 
   .report-row,
-  .report-context-grid {
+  .report-context-grid,
+  .report-modal-summary {
     grid-template-columns: 1fr;
   }
 
