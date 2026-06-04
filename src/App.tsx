@@ -146,6 +146,7 @@ type CommunityRoute = {
 }
 
 type StudyRoute = {
+  mode: 'list' | 'new' | 'detail' | 'edit'
   studyId?: number
 }
 
@@ -167,6 +168,14 @@ function communityEditPath(boardId: CommunityBoardId, postId: number) {
 
 function studyPath(studyId?: number) {
   return studyId ? `/studies/${studyId}` : '/studies'
+}
+
+function studyCreatePath() {
+  return '/studies/new'
+}
+
+function studyEditPath(studyId: number) {
+  return `/studies/${studyId}/edit`
 }
 
 function chatPath(roomId?: number) {
@@ -203,10 +212,13 @@ function parseCommunityRoute(pathname: string): CommunityRoute | null {
 function parseStudyRoute(pathname: string): StudyRoute | null {
   const parts = pathname.split('/').filter(Boolean)
   if (parts[0] !== 'studies') return null
-  if (parts[1] == null) return {}
+  if (parts[1] == null) return { mode: 'list' }
+  if (parts[1] === 'new' && parts[2] == null) return { mode: 'new' }
   const studyId = Number(parts[1])
   if (!Number.isInteger(studyId) || studyId <= 0) return null
-  return { studyId }
+  if (parts[2] == null) return { mode: 'detail', studyId }
+  if (parts[2] === 'edit' && parts[3] == null) return { mode: 'edit', studyId }
+  return null
 }
 
 function parseChatRoute(pathname: string): ChatRoute | null {
@@ -1178,6 +1190,7 @@ function App() {
       await loadMyStudies()
       setSelectedStudy(saved)
       setStudyBoardMode('list')
+      pushStudyRoute(saved.id)
       appendLog(editingStudyId == null ? '스터디 생성 완료' : '스터디 수정 완료')
       showToast('success', editingStudyId == null ? '스터디가 생성되었습니다.' : '스터디가 수정되었습니다.')
     } catch (error) {
@@ -1217,13 +1230,16 @@ function App() {
     })
   }
 
-  function openCreateStudyEditor() {
+  function openCreateStudyEditor(options: { pushRoute?: boolean } = {}) {
     resetStudyEditor()
     setSelectedStudy(null)
     setStudyBoardMode('write')
+    if (options.pushRoute !== false) {
+      pushStudyCreateRoute()
+    }
   }
 
-  function openEditStudyEditor(study: StudyItem) {
+  function fillStudyEditor(study: StudyItem) {
     const detail = studyDetail(study)
     setStudyForm({
       title: study.title,
@@ -1237,6 +1253,39 @@ function App() {
     setStudyFormErrors({})
     setSelectedStudy(study)
     setStudyBoardMode('write')
+  }
+
+  function openEditStudyEditor(study: StudyItem, options: { pushRoute?: boolean } = {}) {
+    if (!study.ownedByRequester) {
+      showToast('error', '수정 권한이 없습니다.')
+      return
+    }
+    fillStudyEditor(study)
+    if (options.pushRoute !== false) {
+      pushStudyEditRoute(study.id)
+    }
+  }
+
+  async function openEditStudyEditorById(studyId: number, options: { pushRoute?: boolean } = {}) {
+    try {
+      const study = await fetchStudy(studyId, accessToken.trim())
+      if (!study.ownedByRequester) {
+        setSelectedStudy(study)
+        setStudyJoinRequests([])
+        setStudyBoardMode('list')
+        if (options.pushRoute !== false) {
+          pushStudyRoute(study.id)
+        }
+        showToast('error', '수정 권한이 없습니다.')
+        return
+      }
+      fillStudyEditor(study)
+      if (options.pushRoute !== false) {
+        pushStudyEditRoute(study.id)
+      }
+    } catch (error) {
+      reportRequestError(error, '스터디 수정 화면을 불러오지 못했습니다.')
+    }
   }
 
   async function mutateStudy(studyId: number, action: StudyAction) {
@@ -1546,10 +1595,24 @@ function App() {
     }
   }
 
+  function pushStudyCreateRoute() {
+    const nextPath = studyCreatePath()
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState(null, '', nextPath)
+    }
+  }
+
+  function pushStudyEditRoute(studyId: number) {
+    const nextPath = studyEditPath(studyId)
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState(null, '', nextPath)
+    }
+  }
+
   function closeStudyDetail() {
     setSelectedStudy(null)
     setStudyJoinRequests([])
-    if (parseStudyRoute(window.location.pathname)?.studyId != null) {
+    if (parseStudyRoute(window.location.pathname)?.mode === 'detail') {
       pushStudyRoute()
     }
   }
@@ -1619,15 +1682,26 @@ function App() {
     setStudyFormErrors({})
     setStudyListScope('recruiting')
 
-    if (route.studyId == null) {
+    if (route.mode === 'list') {
       setSelectedStudy(null)
       setStudyJoinRequests([])
       void loadStudies('', 0)
       return true
     }
 
+    if (route.mode === 'new') {
+      openCreateStudyEditor({ pushRoute: false })
+      return true
+    }
+
     void loadStudies('', 0)
-    void selectStudy(route.studyId, { pushRoute: false })
+    if (route.mode === 'edit' && route.studyId != null) {
+      void openEditStudyEditorById(route.studyId, { pushRoute: false })
+      return true
+    }
+    if (route.studyId != null) {
+      void selectStudy(route.studyId, { pushRoute: false })
+    }
     return true
   }
 
@@ -2505,7 +2579,7 @@ function App() {
               <button
                 className="primary"
                 type="button"
-                onClick={openCreateStudyEditor}
+                onClick={() => openCreateStudyEditor()}
               >
                 <Plus size={16} />
                 스터디 만들기
@@ -2718,8 +2792,14 @@ function App() {
                 <button
                   type="button"
                   onClick={() => {
+                    const editingId = editingStudyId
                     resetStudyEditor()
                     setStudyBoardMode('list')
+                    if (editingId != null) {
+                      pushStudyRoute(editingId)
+                    } else {
+                      pushStudyRoute()
+                    }
                   }}
                 >
                   취소
