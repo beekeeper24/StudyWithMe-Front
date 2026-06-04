@@ -1455,6 +1455,14 @@ function App() {
       return
     }
 
+    if (item.targetType === 'CHAT_REPORT') {
+      navigateWorkspace('mypage')
+      if (isAdmin) {
+        await loadChatReports()
+      }
+      return
+    }
+
     if (item.targetType === 'COMMENT') {
       if (!item.targetPostId) {
         showToast('error', '연결된 글을 찾지 못했습니다.')
@@ -4796,6 +4804,7 @@ function notificationLabel(item: NotificationItem) {
   if (item.targetType === 'STUDY') return '스터디'
   if (item.targetType === 'COMMENT') return '커뮤니티'
   if (item.targetType === 'CHAT_ROOM') return '채팅'
+  if (item.targetType === 'CHAT_REPORT') return '신고'
   return '알림'
 }
 
