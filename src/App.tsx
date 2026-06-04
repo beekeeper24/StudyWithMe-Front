@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   CircleAlert,
   ArrowLeft,
+  Flag,
   House,
   LogIn,
   LogOut,
@@ -21,6 +22,7 @@ import {
   Search,
   Send,
   Settings2,
+  ShieldCheck,
   Trash2,
   User,
   Users,
@@ -46,6 +48,7 @@ import {
   deleteStudy,
   endStudy,
   fetchChatRoomMembers,
+  fetchChatMessageReports,
   fetchChatMessages,
   fetchChatRooms,
   fetchComments,
@@ -67,8 +70,10 @@ import {
   markNotificationRead,
   oauthLoginUrl,
   refreshAccessToken,
+  reportChatMessage,
   replyToComment,
   rejectStudyJoinRequest,
+  handleChatMessageReport,
   updateNickname,
   updateComment,
   updatePost,
@@ -81,6 +86,7 @@ import type {
   AccessTokenResponse,
   AuthProfile,
   ChatMessage,
+  ChatMessageReport,
   ChatRoom,
   ChatRoomMember,
   CommentItem,
@@ -365,6 +371,11 @@ function App() {
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([])
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [chatMembers, setChatMembers] = useState<ChatRoomMember[]>([])
+  const [chatReports, setChatReports] = useState<ChatMessageReport[]>([])
+  const [reportingChatMessage, setReportingChatMessage] = useState<ChatMessage | null>(null)
+  const [chatReportReason, setChatReportReason] = useState('')
+  const [isChatReportSubmitting, setIsChatReportSubmitting] = useState(false)
+  const [handlingChatReportId, setHandlingChatReportId] = useState<number | null>(null)
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [studies, setStudies] = useState<StudyItem[]>([])
   const [myStudyHistory, setMyStudyHistory] = useState<StudyHistory>(emptyStudyHistory)
@@ -510,6 +521,12 @@ function App() {
     [notifications],
   )
   const isAdmin = profile?.roles?.includes('ADMIN') === true
+
+  useEffect(() => {
+    if (!canConnect || needsSignup || activeView !== 'mypage' || !isAdmin) return
+    void loadChatReports()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeView, canConnect, isAdmin, needsSignup])
 
   useEffect(() => {
     if (activeView !== 'lobby') return undefined
@@ -792,6 +809,11 @@ function App() {
     setChatRooms([])
     setChatMessages([])
     setChatMembers([])
+    setChatReports([])
+    setReportingChatMessage(null)
+    setChatReportReason('')
+    setIsChatReportSubmitting(false)
+    setHandlingChatReportId(null)
     setStudies([])
     setMyStudyHistory(emptyStudyHistory)
     setActiveHistoryItems([])
@@ -2172,6 +2194,70 @@ function App() {
     }
   }
 
+  async function loadChatReports() {
+    if (!requireAuthenticated('채팅 신고 관리')) return
+    if (!isAdmin) return
+    try {
+      const reports = await fetchChatMessageReports(accessToken.trim(), 'PENDING')
+      setChatReports(reports)
+    } catch (error) {
+      reportRequestError(error, '채팅 신고 목록을 불러오지 못했습니다.')
+    }
+  }
+
+  function openChatReportModal(item: ChatMessage) {
+    if (!roomId || !item.id || item.deleted || item.senderMemberId === activeProfileMemberId) return
+    setReportingChatMessage(item)
+    setChatReportReason('')
+  }
+
+  function closeChatReportModal() {
+    if (isChatReportSubmitting) return
+    setReportingChatMessage(null)
+    setChatReportReason('')
+  }
+
+  async function submitChatReport() {
+    if (!requireAuthenticated('메시지 신고')) return
+    if (!roomId || !reportingChatMessage?.id) return
+    const reason = chatReportReason.trim()
+    if (!reason) {
+      showToast('info', '신고 사유를 입력해 주세요.')
+      return
+    }
+    try {
+      setIsChatReportSubmitting(true)
+      await reportChatMessage(accessToken.trim(), Number(roomId), reportingChatMessage.id, reason)
+      setReportingChatMessage(null)
+      setChatReportReason('')
+      showToast('success', '신고가 접수되었습니다.')
+    } catch (error) {
+      reportRequestError(error, '메시지를 신고하지 못했습니다.')
+    } finally {
+      setIsChatReportSubmitting(false)
+    }
+  }
+
+  async function resolveChatReport(reportId: number, nextStatus: 'RESOLVED' | 'REJECTED') {
+    if (!requireAuthenticated('채팅 신고 처리')) return
+    if (!isAdmin) return
+    try {
+      setHandlingChatReportId(reportId)
+      await handleChatMessageReport(
+        accessToken.trim(),
+        reportId,
+        nextStatus,
+        nextStatus === 'RESOLVED' ? '처리 완료' : '기각',
+      )
+      setChatReports((current) => current.filter((item) => item.id !== reportId))
+      showToast('success', nextStatus === 'RESOLVED' ? '신고를 처리했습니다.' : '신고를 기각했습니다.')
+    } catch (error) {
+      reportRequestError(error, '채팅 신고를 처리하지 못했습니다.')
+    } finally {
+      setHandlingChatReportId(null)
+    }
+  }
+
   function openAccountManagementModal() {
     setShowAccountManagementModal(true)
     setShowWithdrawalConfirm(false)
@@ -2408,6 +2494,7 @@ function App() {
         {renderAppFooter('app')}
         {renderStudyDetailModal()}
         {showAccountManagementModal && renderAccountManagementModal()}
+        {reportingChatMessage && renderChatReportModal()}
         {studyConfirmAction && renderStudyConfirmModal()}
         {commentDeleteTarget && renderCommentDeleteConfirmModal()}
       </main>
@@ -3193,6 +3280,8 @@ function App() {
           </button>
         </section>
 
+        {isAdmin && renderChatReportAdminPanel()}
+
         <div className="study-history-grid">
           <section className="history-section" aria-label="참여 중인 스터디">
             <div className="section-heading compact">
@@ -3236,6 +3325,54 @@ function App() {
             {renderStudyHistoryPagination('past')}
           </section>
         </div>
+      </section>
+    )
+  }
+
+  function renderChatReportAdminPanel() {
+    return (
+      <section className="admin-report-section" aria-label="채팅 신고 관리">
+        <div className="section-heading compact">
+          <div>
+            <span className="eyebrow">Admin</span>
+            <h2>채팅 신고</h2>
+          </div>
+        </div>
+        {chatReports.length === 0 ? (
+          <EmptyState icon={ShieldCheck} text="처리할 신고가 없습니다." />
+        ) : (
+          <div className="report-list">
+            {chatReports.map((report) => (
+              <article className="report-row" key={report.id}>
+                <div className="report-row-main">
+                  <div className="report-row-header">
+                    <strong>메시지 #{report.messageId}</strong>
+                    <span>{formatTime(report.createdAt)}</span>
+                  </div>
+                  <p>{report.messageContent}</p>
+                  <span>신고 사유: {report.reason}</span>
+                </div>
+                <div className="report-row-actions">
+                  <button
+                    type="button"
+                    onClick={() => resolveChatReport(report.id, 'REJECTED')}
+                    disabled={handlingChatReportId === report.id}
+                  >
+                    기각
+                  </button>
+                  <button
+                    className="primary"
+                    type="button"
+                    onClick={() => resolveChatReport(report.id, 'RESOLVED')}
+                    disabled={handlingChatReportId === report.id}
+                  >
+                    처리 완료
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
       </section>
     )
   }
@@ -3436,6 +3573,71 @@ function App() {
                 onClick={() => removeComment(commentDeleteTarget.id)}
               >
                 삭제
+              </button>
+            </div>
+          </div>
+        </section>
+      </div>
+    )
+  }
+
+  function renderChatReportModal() {
+    if (!reportingChatMessage) return null
+
+    return (
+      <div
+        className="modal-backdrop"
+        role="presentation"
+        onMouseDown={closeChatReportModal}
+      >
+        <section
+          className="account-modal report-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="chat-report-title"
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <div className="account-modal-header">
+            <div>
+              <span className="eyebrow">Report</span>
+              <h2 id="chat-report-title">메시지 신고</h2>
+            </div>
+            <button
+              className="icon-button"
+              type="button"
+              aria-label="메시지 신고 창 닫기"
+              onClick={closeChatReportModal}
+              disabled={isChatReportSubmitting}
+            >
+              <X size={18} />
+            </button>
+          </div>
+          <div className="confirm-modal-body report-modal-body">
+            <blockquote>{reportingChatMessage.content}</blockquote>
+            <label className="report-reason-field">
+              <span>신고 사유</span>
+              <textarea
+                value={chatReportReason}
+                onChange={(event) => setChatReportReason(event.target.value)}
+                maxLength={500}
+                autoFocus
+              />
+            </label>
+            <div className="withdrawal-confirm-actions">
+              <button
+                type="button"
+                onClick={closeChatReportModal}
+                disabled={isChatReportSubmitting}
+              >
+                취소
+              </button>
+              <button
+                className="danger-text-button"
+                type="button"
+                onClick={submitChatReport}
+                disabled={isChatReportSubmitting || !chatReportReason.trim()}
+              >
+                신고
               </button>
             </div>
           </div>
@@ -4073,39 +4275,58 @@ function App() {
                   }
                 />
               ) : (
-                chatMessages.map((item, index) => (
-                  <article className="message-row" key={`${item.id ?? 'local'}-${index}`}>
-                    <div className="avatar">{String(item.senderMemberId).slice(-2)}</div>
-                    <div>
-                      <div className="message-meta">
-                        <strong>
-                          {memberDisplayName(
-                            item.senderMemberId,
-                            chatMembers.find((member) => member.memberId === item.senderMemberId)?.nickname,
-                            profile,
-                            activeProfileMemberId,
-                          )}
-                        </strong>
-                        <span>{formatTime(item.createdAt)}</span>
-                      </div>
-                      <p className={item.deleted ? 'message-content deleted' : 'message-content'}>{item.content}</p>
-                      {item.senderMemberId === activeProfileMemberId && !item.deleted && (
-                        <div className="message-actions">
-                          <span className="message-read-state">{chatMessageReadLabel(item)}</span>
-                          <button
-                            className="message-delete-button"
-                            type="button"
-                            onClick={() => removeChatMessage(item)}
-                            aria-label="메시지 삭제"
-                            title="삭제"
-                          >
-                            <Trash2 size={13} />
-                          </button>
+                chatMessages.map((item, index) => {
+                  const isMyMessage = item.senderMemberId === activeProfileMemberId
+                  const canReportMessage = item.id != null && !item.deleted && !isMyMessage
+
+                  return (
+                    <article className="message-row" key={`${item.id ?? 'local'}-${index}`}>
+                      <div className="avatar">{String(item.senderMemberId).slice(-2)}</div>
+                      <div>
+                        <div className="message-meta">
+                          <strong>
+                            {memberDisplayName(
+                              item.senderMemberId,
+                              chatMembers.find((member) => member.memberId === item.senderMemberId)?.nickname,
+                              profile,
+                              activeProfileMemberId,
+                            )}
+                          </strong>
+                          <span>{formatTime(item.createdAt)}</span>
                         </div>
-                      )}
-                    </div>
-                  </article>
-                ))
+                        <p className={item.deleted ? 'message-content deleted' : 'message-content'}>{item.content}</p>
+                        {isMyMessage && !item.deleted && (
+                          <div className="message-actions">
+                            <span className="message-read-state">{chatMessageReadLabel(item)}</span>
+                            <button
+                              className="message-icon-button danger"
+                              type="button"
+                              onClick={() => removeChatMessage(item)}
+                              aria-label="메시지 삭제"
+                              title="삭제"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        )}
+                        {canReportMessage && (
+                          <div className="message-actions">
+                            <button
+                              className="message-icon-button"
+                              type="button"
+                              onClick={() => openChatReportModal(item)}
+                              aria-label="메시지 신고"
+                              title="신고"
+                            >
+                              <Flag size={13} />
+                              신고
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </article>
+                  )
+                })
               )}
             </div>
 

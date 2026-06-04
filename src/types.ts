@@ -28,6 +28,23 @@ export type ChatMessage = {
   deleted?: boolean
 }
 
+export type ChatMessageReportStatus = 'PENDING' | 'RESOLVED' | 'REJECTED'
+
+export type ChatMessageReport = {
+  id: number
+  roomId: number
+  messageId: number
+  reporterMemberId: number
+  reportedMemberId: number
+  messageContent: string
+  reason: string
+  status: ChatMessageReportStatus
+  handlerMemberId?: number | null
+  handlingNote?: string | null
+  createdAt?: string | null
+  handledAt?: string | null
+}
+
 export type ChatRoom = {
   id: number
   type: string

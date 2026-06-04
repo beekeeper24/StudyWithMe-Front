@@ -1385,6 +1385,103 @@ textarea[aria-invalid="true"] {
   background: #ffffff;
 }
 
+.admin-report-section {
+  margin-top: 14px;
+  padding: 16px;
+  border: 1px solid #edf0f3;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.report-list {
+  display: grid;
+  gap: 10px;
+}
+
+.report-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #edf0f3;
+  border-radius: 10px;
+  background: #fbfcfd;
+  transition:
+    transform 150ms ease,
+    border-color 150ms ease,
+    background 150ms ease;
+}
+
+.report-row:hover {
+  transform: translateY(-1px);
+  border-color: #cfd6dd;
+  background: #ffffff;
+}
+
+.report-row-main {
+  min-width: 0;
+}
+
+.report-row-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 7px;
+}
+
+.report-row-header strong {
+  color: #191f28;
+  font-size: 14px;
+}
+
+.report-row-header span,
+.report-row-main span {
+  color: #8b95a1;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.report-row-main p {
+  margin: 0 0 7px;
+  color: #333d4b;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.report-row-actions {
+  display: flex;
+  gap: 7px;
+}
+
+.report-row-actions button {
+  min-height: 32px;
+  padding: 0 10px;
+  color: #4e5968;
+  background: #f2f4f6;
+  transition:
+    transform 150ms ease,
+    color 150ms ease,
+    background 150ms ease;
+}
+
+.report-row-actions button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  color: #191f28;
+  background: #e5e8eb;
+}
+
+.report-row-actions button.primary {
+  color: #ffffff;
+  background: #24272d;
+}
+
+.report-row-actions button.primary:hover:not(:disabled) {
+  background: #111318;
+}
+
 .history-count {
   min-width: 34px;
   height: 28px;
@@ -2511,17 +2608,66 @@ textarea[aria-invalid="true"] {
   font-weight: 700;
 }
 
-.message-delete-button {
-  width: 24px;
+.message-icon-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   min-height: 24px;
-  padding: 0;
+  padding: 0 7px;
   color: #8b95a1;
   background: transparent;
+  font-size: 12px;
+  transition:
+    transform 150ms ease,
+    color 150ms ease,
+    background 150ms ease;
 }
 
-.message-delete-button:hover {
+.message-icon-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  color: #333d4b;
+  background: #eef1f4;
+}
+
+.message-icon-button.danger:hover:not(:disabled) {
   color: #d92d20;
   background: #fff1f0;
+}
+
+.report-modal {
+  width: min(520px, 100%);
+}
+
+.report-modal-body {
+  gap: 12px;
+}
+
+.report-reason-field {
+  display: grid;
+  gap: 7px;
+}
+
+.report-reason-field span {
+  color: #333d4b;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.report-reason-field textarea {
+  min-height: 112px;
+  resize: vertical;
+  padding: 12px;
+  border: 1px solid #d9dee4;
+  border-radius: 10px;
+  color: #191f28;
+  background: #ffffff;
+  font: inherit;
+  line-height: 1.55;
+}
+
+.report-reason-field textarea:focus {
+  outline: 2px solid rgba(25, 31, 40, 0.16);
+  border-color: #8b95a1;
 }
 
 .composer {
