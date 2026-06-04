@@ -38,6 +38,7 @@ import {
   createPrivateChatRoom,
   createStudy,
   createStudyChatRoom,
+  deleteChatMessage,
   deleteChatRoom,
   deleteComment,
   deleteNotification,
@@ -2104,7 +2105,7 @@ function App() {
         showToast('error', '채팅 연결에 문제가 있습니다.', errorMessage)
       },
       onChatMessage: (incoming) => {
-        setChatMessages((current) => [...current, incoming].slice(-30))
+        setChatMessages((current) => mergeChatMessages(current, incoming).slice(-30))
       },
       onNotification: (incoming) => {
         setNotifications((current) => mergeNotifications(current, [incoming]))
@@ -2156,6 +2157,19 @@ function App() {
     }
     sendChatMessage(clientRef.current, roomId, message)
     setMessage('')
+  }
+
+  async function removeChatMessage(item: ChatMessage) {
+    if (!requireAuthenticated('메시지 삭제')) return
+    if (!roomId || !item.id || item.senderMemberId !== activeProfileMemberId || item.deleted) return
+    try {
+      const deletedMessage = await deleteChatMessage(accessToken.trim(), Number(roomId), item.id)
+      setChatMessages((current) => mergeChatMessages(current, deletedMessage))
+      await loadChatRooms()
+      showToast('success', '메시지를 삭제했습니다.')
+    } catch (error) {
+      reportRequestError(error, '메시지를 삭제하지 못했습니다.')
+    }
   }
 
   function openAccountManagementModal() {
@@ -4074,9 +4088,20 @@ function App() {
                         </strong>
                         <span>{formatTime(item.createdAt)}</span>
                       </div>
-                      <p>{item.content}</p>
-                      {item.senderMemberId === activeProfileMemberId && (
-                        <span className="message-read-state">{chatMessageReadLabel(item)}</span>
+                      <p className={item.deleted ? 'message-content deleted' : 'message-content'}>{item.content}</p>
+                      {item.senderMemberId === activeProfileMemberId && !item.deleted && (
+                        <div className="message-actions">
+                          <span className="message-read-state">{chatMessageReadLabel(item)}</span>
+                          <button
+                            className="message-delete-button"
+                            type="button"
+                            onClick={() => removeChatMessage(item)}
+                            aria-label="메시지 삭제"
+                            title="삭제"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
                       )}
                     </div>
                   </article>
@@ -4537,6 +4562,13 @@ function chatRoomPreview(room: ChatRoom) {
 function chatMessageReadLabel(message: ChatMessage) {
   const readCount = message.readMemberCount ?? 0
   return readCount > 0 ? `읽음 ${readCount}` : '읽지 않음'
+}
+
+function mergeChatMessages(current: ChatMessage[], incoming: ChatMessage) {
+  if (incoming.id == null) return [...current, incoming]
+  const index = current.findIndex((item) => item.id === incoming.id)
+  if (index < 0) return [...current, incoming]
+  return current.map((item, itemIndex) => (itemIndex === index ? incoming : item))
 }
 
 function notificationLabel(item: NotificationItem) {
