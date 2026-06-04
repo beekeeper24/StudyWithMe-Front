@@ -15,13 +15,15 @@ Update it when report, admin notification, or moderation navigation behavior cha
 
 - Admin users see a `채팅 신고` panel on My Page.
 - Regular users do not render the admin report panel.
-- The panel loads pending chat message reports.
-- Handling a report as resolved or rejected removes it from the pending panel.
+- The panel supports `대기`, `처리 완료`, `기각`, and `전체` filters.
+- `대기` is the actionable queue.
+- `처리 완료`, `기각`, and `전체` show handled report history for operational review.
+- Handling a report as resolved or rejected removes it from the pending panel and leaves it visible in history filters.
 
 ## Admin Notification Navigation
 
 - A notification with target type `CHAT_REPORT` opens My Page.
-- If the current user is an admin, opening the notification reloads the pending report panel.
+- If the current user is an admin, opening the notification switches to the pending report panel and reloads it.
 - The notification label shown in the popup is `신고`.
 
 ## Future Assignment UI

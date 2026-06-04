@@ -87,6 +87,7 @@ import type {
   AuthProfile,
   ChatMessage,
   ChatMessageReport,
+  ChatMessageReportStatus,
   ChatRoom,
   ChatRoomMember,
   CommentItem,
@@ -346,6 +347,7 @@ type StudyListScope = 'recruiting' | 'active'
 type StudyAction = 'join' | 'leave' | 'close' | 'end' | 'delete' | 'hideHistory'
 type PostBoardMode = 'list' | 'detail' | 'write'
 type ToastKind = 'success' | 'error' | 'info'
+type ChatReportFilter = ChatMessageReportStatus | 'ALL'
 type ToastMessage = {
   id: number
   kind: ToastKind
@@ -360,6 +362,12 @@ const studyListScopes: Array<{ id: StudyListScope; label: string }> = [
   { id: 'recruiting', label: '모집 중' },
   { id: 'active', label: '참여 중' },
 ]
+const chatReportFilters: Array<{ id: ChatReportFilter; label: string }> = [
+  { id: 'PENDING', label: '대기' },
+  { id: 'RESOLVED', label: '처리 완료' },
+  { id: 'REJECTED', label: '기각' },
+  { id: 'ALL', label: '전체' },
+]
 
 function App() {
   const [activeView, setActiveView] = useState<WorkspaceView>('lobby')
@@ -372,6 +380,7 @@ function App() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [chatMembers, setChatMembers] = useState<ChatRoomMember[]>([])
   const [chatReports, setChatReports] = useState<ChatMessageReport[]>([])
+  const [chatReportFilter, setChatReportFilter] = useState<ChatReportFilter>('PENDING')
   const [reportingChatMessage, setReportingChatMessage] = useState<ChatMessage | null>(null)
   const [chatReportReason, setChatReportReason] = useState('')
   const [isChatReportSubmitting, setIsChatReportSubmitting] = useState(false)
@@ -524,9 +533,9 @@ function App() {
 
   useEffect(() => {
     if (!canConnect || needsSignup || activeView !== 'mypage' || !isAdmin) return
-    void loadChatReports()
+    void loadChatReports(chatReportFilter)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeView, canConnect, isAdmin, needsSignup])
+  }, [activeView, canConnect, chatReportFilter, isAdmin, needsSignup])
 
   useEffect(() => {
     if (activeView !== 'lobby') return undefined
@@ -810,6 +819,7 @@ function App() {
     setChatMessages([])
     setChatMembers([])
     setChatReports([])
+    setChatReportFilter('PENDING')
     setReportingChatMessage(null)
     setChatReportReason('')
     setIsChatReportSubmitting(false)
@@ -1457,8 +1467,9 @@ function App() {
 
     if (item.targetType === 'CHAT_REPORT') {
       navigateWorkspace('mypage')
+      setChatReportFilter('PENDING')
       if (isAdmin) {
-        await loadChatReports()
+        await loadChatReports('PENDING')
       }
       return
     }
@@ -2202,11 +2213,14 @@ function App() {
     }
   }
 
-  async function loadChatReports() {
+  async function loadChatReports(filter: ChatReportFilter = chatReportFilter) {
     if (!requireAuthenticated('채팅 신고 관리')) return
     if (!isAdmin) return
     try {
-      const reports = await fetchChatMessageReports(accessToken.trim(), 'PENDING')
+      const reports = await fetchChatMessageReports(
+        accessToken.trim(),
+        filter === 'ALL' ? undefined : filter,
+      )
       setChatReports(reports)
     } catch (error) {
       reportRequestError(error, '채팅 신고 목록을 불러오지 못했습니다.')
@@ -2251,13 +2265,21 @@ function App() {
     if (!isAdmin) return
     try {
       setHandlingChatReportId(reportId)
-      await handleChatMessageReport(
+      const handledReport = await handleChatMessageReport(
         accessToken.trim(),
         reportId,
         nextStatus,
         nextStatus === 'RESOLVED' ? '처리 완료' : '기각',
       )
-      setChatReports((current) => current.filter((item) => item.id !== reportId))
+      setChatReports((current) => {
+        if (chatReportFilter === 'PENDING') {
+          return current.filter((item) => item.id !== reportId)
+        }
+        if (chatReportFilter === 'ALL' || chatReportFilter === nextStatus) {
+          return current.map((item) => (item.id === reportId ? handledReport : item))
+        }
+        return current.filter((item) => item.id !== reportId)
+      })
       showToast('success', nextStatus === 'RESOLVED' ? '신고를 처리했습니다.' : '신고를 기각했습니다.')
     } catch (error) {
       reportRequestError(error, '채팅 신고를 처리하지 못했습니다.')
@@ -3346,37 +3368,62 @@ function App() {
             <h2>채팅 신고</h2>
           </div>
         </div>
+        <div className="report-filter-tabs" role="tablist" aria-label="채팅 신고 상태">
+          {chatReportFilters.map((filter) => (
+            <button
+              className={chatReportFilter === filter.id ? 'active' : undefined}
+              key={filter.id}
+              type="button"
+              onClick={() => setChatReportFilter(filter.id)}
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
         {chatReports.length === 0 ? (
-          <EmptyState icon={ShieldCheck} text="처리할 신고가 없습니다." />
+          <EmptyState icon={ShieldCheck} text={chatReportEmptyText(chatReportFilter)} />
         ) : (
           <div className="report-list">
             {chatReports.map((report) => (
               <article className="report-row" key={report.id}>
                 <div className="report-row-main">
                   <div className="report-row-header">
-                    <strong>메시지 #{report.messageId}</strong>
+                    <div className="report-row-title">
+                      <strong>메시지 #{report.messageId}</strong>
+                      <span className={`report-status ${report.status.toLowerCase()}`}>
+                        {chatReportStatusLabel(report.status)}
+                      </span>
+                    </div>
                     <span>{formatTime(report.createdAt)}</span>
                   </div>
                   <p>{report.messageContent}</p>
                   <span>신고 사유: {report.reason}</span>
+                  {report.status !== 'PENDING' && (
+                    <span>
+                      처리: {chatReportStatusLabel(report.status)}
+                      {report.handledAt ? ` · ${formatTime(report.handledAt)}` : ''}
+                    </span>
+                  )}
                 </div>
-                <div className="report-row-actions">
-                  <button
-                    type="button"
-                    onClick={() => resolveChatReport(report.id, 'REJECTED')}
-                    disabled={handlingChatReportId === report.id}
-                  >
-                    기각
-                  </button>
-                  <button
-                    className="primary"
-                    type="button"
-                    onClick={() => resolveChatReport(report.id, 'RESOLVED')}
-                    disabled={handlingChatReportId === report.id}
-                  >
-                    처리 완료
-                  </button>
-                </div>
+                {report.status === 'PENDING' && (
+                  <div className="report-row-actions">
+                    <button
+                      type="button"
+                      onClick={() => resolveChatReport(report.id, 'REJECTED')}
+                      disabled={handlingChatReportId === report.id}
+                    >
+                      기각
+                    </button>
+                    <button
+                      className="primary"
+                      type="button"
+                      onClick={() => resolveChatReport(report.id, 'RESOLVED')}
+                      disabled={handlingChatReportId === report.id}
+                    >
+                      처리 완료
+                    </button>
+                  </div>
+                )}
               </article>
             ))}
           </div>
@@ -4806,6 +4853,19 @@ function notificationLabel(item: NotificationItem) {
   if (item.targetType === 'CHAT_ROOM') return '채팅'
   if (item.targetType === 'CHAT_REPORT') return '신고'
   return '알림'
+}
+
+function chatReportStatusLabel(status: ChatMessageReportStatus) {
+  if (status === 'PENDING') return '대기'
+  if (status === 'RESOLVED') return '처리 완료'
+  return '기각'
+}
+
+function chatReportEmptyText(filter: ChatReportFilter) {
+  if (filter === 'PENDING') return '처리할 신고가 없습니다.'
+  if (filter === 'RESOLVED') return '처리 완료된 신고가 없습니다.'
+  if (filter === 'REJECTED') return '기각된 신고가 없습니다.'
+  return '신고 이력이 없습니다.'
 }
 
 function avatarDataUrl(value: string) {
