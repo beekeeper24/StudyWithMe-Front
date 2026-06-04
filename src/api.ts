@@ -120,6 +120,14 @@ export async function markNotificationRead(
   })
 }
 
+export async function markAllNotificationsRead(
+  accessToken: string,
+): Promise<NotificationItem[]> {
+  return request<NotificationItem[]>('/api/v1/notifications/read-all', accessToken, {
+    method: 'POST',
+  })
+}
+
 export async function deleteNotification(
   accessToken: string,
   notificationId: number,
