@@ -3389,18 +3389,38 @@ function App() {
                 <div className="report-row-main">
                   <div className="report-row-header">
                     <div className="report-row-title">
-                      <strong>메시지 #{report.messageId}</strong>
+                      <strong>신고 #{report.id}</strong>
                       <span className={`report-status ${report.status.toLowerCase()}`}>
                         {chatReportStatusLabel(report.status)}
                       </span>
                     </div>
                     <span>{formatTime(report.createdAt)}</span>
                   </div>
-                  <p>{report.messageContent}</p>
-                  <span>신고 사유: {report.reason}</span>
+                  <div className="report-context-grid">
+                    <div>
+                      <span>신고자</span>
+                      <strong>{reportMemberName(report.reporterNickname)}</strong>
+                    </div>
+                    <div>
+                      <span>피신고자</span>
+                      <strong>{reportMemberName(report.reportedNickname)}</strong>
+                    </div>
+                    <div>
+                      <span>처리자</span>
+                      <strong>{report.status === 'PENDING' ? '미처리' : reportMemberName(report.handlerNickname)}</strong>
+                    </div>
+                  </div>
+                  <div className="report-content-block">
+                    <span>원문 메시지</span>
+                    <p>{report.messageContent}</p>
+                  </div>
+                  <div className="report-content-block reason">
+                    <span>신고 사유</span>
+                    <p>{report.reason}</p>
+                  </div>
                   {report.status !== 'PENDING' && (
-                    <span>
-                      처리: {chatReportStatusLabel(report.status)}
+                    <span className="report-handled-text">
+                      {chatReportStatusLabel(report.status)}
                       {report.handledAt ? ` · ${formatTime(report.handledAt)}` : ''}
                     </span>
                   )}
@@ -4866,6 +4886,11 @@ function chatReportEmptyText(filter: ChatReportFilter) {
   if (filter === 'RESOLVED') return '처리 완료된 신고가 없습니다.'
   if (filter === 'REJECTED') return '기각된 신고가 없습니다.'
   return '신고 이력이 없습니다.'
+}
+
+function reportMemberName(nickname?: string | null) {
+  const trimmed = nickname?.trim()
+  return trimmed || '탈퇴한 회원'
 }
 
 function avatarDataUrl(value: string) {

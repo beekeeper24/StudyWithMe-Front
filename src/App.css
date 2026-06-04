@@ -1431,7 +1431,7 @@ textarea[aria-invalid="true"] {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 12px;
-  align-items: center;
+  align-items: start;
   padding: 12px;
   border: 1px solid #edf0f3;
   border-radius: 10px;
@@ -1505,7 +1505,49 @@ textarea[aria-invalid="true"] {
   font-weight: 700;
 }
 
-.report-row-main p {
+.report-context-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.report-context-grid div {
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid #edf0f3;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.report-context-grid span,
+.report-content-block span {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.report-context-grid strong {
+  display: block;
+  color: #191f28;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.report-content-block {
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid #edf0f3;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.report-content-block.reason {
+  background: #f8fafb;
+}
+
+.report-content-block p {
   margin: 0 0 7px;
   color: #333d4b;
   font-size: 13px;
@@ -1513,9 +1555,19 @@ textarea[aria-invalid="true"] {
   overflow-wrap: anywhere;
 }
 
+.report-content-block p:last-child {
+  margin-bottom: 0;
+}
+
+.report-handled-text {
+  display: inline-flex;
+  margin-top: 8px;
+}
+
 .report-row-actions {
   display: flex;
   gap: 7px;
+  align-self: start;
 }
 
 .report-row-actions button {
@@ -3143,6 +3195,15 @@ textarea[aria-invalid="true"] {
 
   .report-filter-tabs {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .report-row,
+  .report-context-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .report-row-actions {
+    justify-content: flex-start;
   }
 
   .study-editor-grid {

@@ -19,6 +19,9 @@ Update it when report, admin notification, or moderation navigation behavior cha
 - `대기` is the actionable queue.
 - `처리 완료`, `기각`, and `전체` show handled report history for operational review.
 - Handling a report as resolved or rejected removes it from the pending panel and leaves it visible in history filters.
+- Report rows show reporter, reported member, and handler nicknames when available.
+- Missing member nicknames are displayed as a safe withdrawn-member fallback instead of making numeric ids the primary UI label.
+- The report reason and original message content are separated into their own blocks so admins can review the context quickly.
 
 ## Admin Notification Navigation
 

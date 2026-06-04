@@ -35,11 +35,14 @@ export type ChatMessageReport = {
   roomId: number
   messageId: number
   reporterMemberId: number
+  reporterNickname?: string | null
   reportedMemberId: number
+  reportedNickname?: string | null
   messageContent: string
   reason: string
   status: ChatMessageReportStatus
   handlerMemberId?: number | null
+  handlerNickname?: string | null
   handlingNote?: string | null
   createdAt?: string | null
   handledAt?: string | null
