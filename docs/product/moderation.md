@@ -18,8 +18,11 @@ Update it when report, admin notification, or moderation navigation behavior cha
 - The panel supports `대기`, `처리 완료`, `기각`, and `전체` filters.
 - `대기` is the actionable queue.
 - `처리 완료`, `기각`, and `전체` show handled report history for operational review.
+- Pending reports start as unassigned.
+- Admins claim an unassigned pending report with `담당하기`.
+- Only the assigned admin sees resolve/reject actions.
 - Handling a report as resolved or rejected removes it from the pending panel and leaves it visible in history filters.
-- Report rows show reporter, reported member, and handler nicknames when available.
+- Report rows show reporter, reported member, assigned admin, and handler nicknames when available.
 - Missing member nicknames are displayed as a safe withdrawn-member fallback instead of making numeric ids the primary UI label.
 - The report reason and original message content are separated into their own blocks so admins can review the context quickly.
 - Handling actions open a modal instead of immediately mutating the report.
@@ -33,8 +36,7 @@ Update it when report, admin notification, or moderation navigation behavior cha
 
 ## Future Assignment UI
 
-When the backend adds report assignment:
+When assignment notification is added:
 
-- Add an assigned-admin indicator.
-- Add a "담당하기" action if reports can be claimed manually.
-- Hide or disable handling actions for reports assigned to another admin unless the backend policy allows override.
+- Route follow-up notifications only to the assigned admin.
+- Add a filter for reports assigned to the current admin if the pending queue grows.

@@ -205,6 +205,15 @@ export async function fetchChatMessageReports(
   return request<ChatMessageReport[]>(`/api/v1/admin/chat-message-reports${query}`, accessToken)
 }
 
+export async function assignChatMessageReport(
+  accessToken: string,
+  reportId: number,
+): Promise<ChatMessageReport> {
+  return request<ChatMessageReport>(`/api/v1/admin/chat-message-reports/${reportId}/assign`, accessToken, {
+    method: 'POST',
+  })
+}
+
 export async function handleChatMessageReport(
   accessToken: string,
   reportId: number,

@@ -47,6 +47,7 @@ import {
   deletePost,
   deleteStudy,
   endStudy,
+  assignChatMessageReport,
   fetchChatRoomMembers,
   fetchChatMessageReports,
   fetchChatMessages,
@@ -2282,6 +2283,21 @@ function App() {
     }
   }
 
+  async function assignChatReport(report: ChatMessageReport) {
+    if (!requireAuthenticated('채팅 신고 담당')) return
+    if (!isAdmin) return
+    try {
+      setHandlingChatReportId(report.id)
+      const assignedReport = await assignChatMessageReport(accessToken.trim(), report.id)
+      setChatReports((current) => current.map((item) => (item.id === report.id ? assignedReport : item)))
+      showToast('success', '신고를 담당합니다.')
+    } catch (error) {
+      reportRequestError(error, '채팅 신고를 담당하지 못했습니다.')
+    } finally {
+      setHandlingChatReportId(null)
+    }
+  }
+
   async function resolveChatReport() {
     if (!requireAuthenticated('채팅 신고 처리')) return
     if (!isAdmin) return
@@ -3413,74 +3429,101 @@ function App() {
           <EmptyState icon={ShieldCheck} text={chatReportEmptyText(chatReportFilter)} />
         ) : (
           <div className="report-list">
-            {chatReports.map((report) => (
-              <article className="report-row" key={report.id}>
-                <div className="report-row-main">
-                  <div className="report-row-header">
-                    <div className="report-row-title">
-                      <strong>신고 #{report.id}</strong>
-                      <span className={`report-status ${report.status.toLowerCase()}`}>
+            {chatReports.map((report) => {
+              const isPending = report.status === 'PENDING'
+              const isUnassigned = report.assignedAdminMemberId == null
+              const isAssignedToMe = report.assignedAdminMemberId === activeProfileMemberId
+              return (
+                <article className="report-row" key={report.id}>
+                  <div className="report-row-main">
+                    <div className="report-row-header">
+                      <div className="report-row-title">
+                        <strong>신고 #{report.id}</strong>
+                        <span className={`report-status ${report.status.toLowerCase()}`}>
+                          {chatReportStatusLabel(report.status)}
+                        </span>
+                      </div>
+                      <span>{formatTime(report.createdAt)}</span>
+                    </div>
+                    <div className="report-context-grid">
+                      <div>
+                        <span>신고자</span>
+                        <strong>{reportMemberName(report.reporterNickname)}</strong>
+                      </div>
+                      <div>
+                        <span>피신고자</span>
+                        <strong>{reportMemberName(report.reportedNickname)}</strong>
+                      </div>
+                      <div>
+                        <span>담당자</span>
+                        <strong>{report.assignedAdminMemberId == null ? '미배정' : reportMemberName(report.assignedAdminNickname)}</strong>
+                      </div>
+                      <div>
+                        <span>처리자</span>
+                        <strong>{isPending ? '미처리' : reportMemberName(report.handlerNickname)}</strong>
+                      </div>
+                    </div>
+                    <div className="report-content-block">
+                      <span>원문 메시지</span>
+                      <p>{report.messageContent}</p>
+                    </div>
+                    <div className="report-content-block reason">
+                      <span>신고 사유</span>
+                      <p>{report.reason}</p>
+                    </div>
+                    {report.assignedAt && (
+                      <span className="report-handled-text">담당 시작 · {formatTime(report.assignedAt)}</span>
+                    )}
+                    {!isPending && (
+                      <span className="report-handled-text">
                         {chatReportStatusLabel(report.status)}
+                        {report.handledAt ? ` · ${formatTime(report.handledAt)}` : ''}
                       </span>
-                    </div>
-                    <span>{formatTime(report.createdAt)}</span>
+                    )}
+                    {!isPending && report.handlingNote && (
+                      <div className="report-content-block note">
+                        <span>처리 메모</span>
+                        <p>{report.handlingNote}</p>
+                      </div>
+                    )}
                   </div>
-                  <div className="report-context-grid">
-                    <div>
-                      <span>신고자</span>
-                      <strong>{reportMemberName(report.reporterNickname)}</strong>
+                  {isPending && (
+                    <div className="report-row-actions">
+                      {isUnassigned ? (
+                        <button
+                          className="primary"
+                          type="button"
+                          onClick={() => assignChatReport(report)}
+                          disabled={handlingChatReportId === report.id}
+                        >
+                          담당하기
+                        </button>
+                      ) : isAssignedToMe ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => openChatReportHandlingModal(report, 'REJECTED')}
+                            disabled={handlingChatReportId === report.id}
+                          >
+                            기각
+                          </button>
+                          <button
+                            className="primary"
+                            type="button"
+                            onClick={() => openChatReportHandlingModal(report, 'RESOLVED')}
+                            disabled={handlingChatReportId === report.id}
+                          >
+                            처리 완료
+                          </button>
+                        </>
+                      ) : (
+                        <span className="report-assigned-text">담당 중</span>
+                      )}
                     </div>
-                    <div>
-                      <span>피신고자</span>
-                      <strong>{reportMemberName(report.reportedNickname)}</strong>
-                    </div>
-                    <div>
-                      <span>처리자</span>
-                      <strong>{report.status === 'PENDING' ? '미처리' : reportMemberName(report.handlerNickname)}</strong>
-                    </div>
-                  </div>
-                  <div className="report-content-block">
-                    <span>원문 메시지</span>
-                    <p>{report.messageContent}</p>
-                  </div>
-                  <div className="report-content-block reason">
-                    <span>신고 사유</span>
-                    <p>{report.reason}</p>
-                  </div>
-                  {report.status !== 'PENDING' && (
-                    <span className="report-handled-text">
-                      {chatReportStatusLabel(report.status)}
-                      {report.handledAt ? ` · ${formatTime(report.handledAt)}` : ''}
-                    </span>
                   )}
-                  {report.status !== 'PENDING' && report.handlingNote && (
-                    <div className="report-content-block note">
-                      <span>처리 메모</span>
-                      <p>{report.handlingNote}</p>
-                    </div>
-                  )}
-                </div>
-                {report.status === 'PENDING' && (
-                  <div className="report-row-actions">
-                    <button
-                      type="button"
-                      onClick={() => openChatReportHandlingModal(report, 'REJECTED')}
-                      disabled={handlingChatReportId === report.id}
-                    >
-                      기각
-                    </button>
-                    <button
-                      className="primary"
-                      type="button"
-                      onClick={() => openChatReportHandlingModal(report, 'RESOLVED')}
-                      disabled={handlingChatReportId === report.id}
-                    >
-                      처리 완료
-                    </button>
-                  </div>
-                )}
-              </article>
-            ))}
+                </article>
+              )
+            })}
           </div>
         )}
       </section>

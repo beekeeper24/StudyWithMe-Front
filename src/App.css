@@ -1522,7 +1522,7 @@ textarea[aria-invalid="true"] {
 
 .report-context-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   margin-bottom: 10px;
 }
@@ -1585,6 +1585,7 @@ textarea[aria-invalid="true"] {
 
 .report-row-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 7px;
   align-self: start;
 }
@@ -1613,6 +1614,18 @@ textarea[aria-invalid="true"] {
 
 .report-row-actions button.primary:hover:not(:disabled) {
   background: #111318;
+}
+
+.report-assigned-text {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  padding: 0 10px;
+  border-radius: 8px;
+  color: #6b7684;
+  background: #f2f4f6;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .history-count {

@@ -41,6 +41,9 @@ export type ChatMessageReport = {
   messageContent: string
   reason: string
   status: ChatMessageReportStatus
+  assignedAdminMemberId?: number | null
+  assignedAdminNickname?: string | null
+  assignedAt?: string | null
   handlerMemberId?: number | null
   handlerNickname?: string | null
   handlingNote?: string | null
