@@ -1412,10 +1412,18 @@ textarea[aria-invalid="true"] {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
+  margin-bottom: 8px;
+}
+
+.report-assignment-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
   margin-bottom: 12px;
 }
 
-.report-filter-tabs button {
+.report-filter-tabs button,
+.report-assignment-tabs button {
   min-height: 36px;
   padding: 0 10px;
   color: #4e5968;
@@ -1426,13 +1434,21 @@ textarea[aria-invalid="true"] {
     background 150ms ease;
 }
 
-.report-filter-tabs button:hover {
+.report-assignment-tabs button {
+  min-height: 32px;
+  font-size: 12px;
+  background: #f8f9fa;
+}
+
+.report-filter-tabs button:hover,
+.report-assignment-tabs button:hover {
   transform: translateY(-1px);
   color: #191f28;
   background: #e5e8eb;
 }
 
-.report-filter-tabs button.active {
+.report-filter-tabs button.active,
+.report-assignment-tabs button.active {
   color: #ffffff;
   background: #24272d;
 }
@@ -3256,7 +3272,8 @@ textarea[aria-invalid="true"] {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .report-filter-tabs {
+  .report-filter-tabs,
+  .report-assignment-tabs {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 

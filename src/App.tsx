@@ -349,6 +349,7 @@ type StudyAction = 'join' | 'leave' | 'close' | 'end' | 'delete' | 'hideHistory'
 type PostBoardMode = 'list' | 'detail' | 'write'
 type ToastKind = 'success' | 'error' | 'info'
 type ChatReportFilter = ChatMessageReportStatus | 'ALL'
+type ChatReportAssignmentFilter = 'ALL' | 'UNASSIGNED' | 'MINE' | 'OTHERS'
 type ChatReportHandlingTarget = {
   report: ChatMessageReport
   nextStatus: Exclude<ChatMessageReportStatus, 'PENDING'>
@@ -373,6 +374,12 @@ const chatReportFilters: Array<{ id: ChatReportFilter; label: string }> = [
   { id: 'REJECTED', label: '기각' },
   { id: 'ALL', label: '전체' },
 ]
+const chatReportAssignmentFilters: Array<{ id: ChatReportAssignmentFilter; label: string }> = [
+  { id: 'ALL', label: '전체' },
+  { id: 'UNASSIGNED', label: '미배정' },
+  { id: 'MINE', label: '내 담당' },
+  { id: 'OTHERS', label: '다른 담당' },
+]
 
 function App() {
   const [activeView, setActiveView] = useState<WorkspaceView>('lobby')
@@ -386,6 +393,8 @@ function App() {
   const [chatMembers, setChatMembers] = useState<ChatRoomMember[]>([])
   const [chatReports, setChatReports] = useState<ChatMessageReport[]>([])
   const [chatReportFilter, setChatReportFilter] = useState<ChatReportFilter>('PENDING')
+  const [chatReportAssignmentFilter, setChatReportAssignmentFilter] =
+    useState<ChatReportAssignmentFilter>('ALL')
   const [reportingChatMessage, setReportingChatMessage] = useState<ChatMessage | null>(null)
   const [chatReportReason, setChatReportReason] = useState('')
   const [isChatReportSubmitting, setIsChatReportSubmitting] = useState(false)
@@ -537,6 +546,21 @@ function App() {
     [notifications],
   )
   const isAdmin = profile?.roles?.includes('ADMIN') === true
+  const visibleChatReports = useMemo(() => {
+    if (chatReportFilter !== 'PENDING') return chatReports
+    if (chatReportAssignmentFilter === 'UNASSIGNED') {
+      return chatReports.filter((report) => report.assignedAdminMemberId == null)
+    }
+    if (chatReportAssignmentFilter === 'MINE') {
+      return chatReports.filter((report) => report.assignedAdminMemberId === activeProfileMemberId)
+    }
+    if (chatReportAssignmentFilter === 'OTHERS') {
+      return chatReports.filter((report) =>
+        report.assignedAdminMemberId != null && report.assignedAdminMemberId !== activeProfileMemberId
+      )
+    }
+    return chatReports
+  }, [activeProfileMemberId, chatReportAssignmentFilter, chatReportFilter, chatReports])
 
   useEffect(() => {
     if (!canConnect || needsSignup || activeView !== 'mypage' || !isAdmin) return
@@ -827,6 +851,7 @@ function App() {
     setChatMembers([])
     setChatReports([])
     setChatReportFilter('PENDING')
+    setChatReportAssignmentFilter('ALL')
     setReportingChatMessage(null)
     setChatReportReason('')
     setIsChatReportSubmitting(false)
@@ -1477,6 +1502,7 @@ function App() {
     if (item.targetType === 'CHAT_REPORT') {
       navigateWorkspace('mypage')
       setChatReportFilter('PENDING')
+      setChatReportAssignmentFilter('ALL')
       if (isAdmin) {
         await loadChatReports('PENDING')
       }
@@ -2233,6 +2259,13 @@ function App() {
       setChatReports(reports)
     } catch (error) {
       reportRequestError(error, '채팅 신고 목록을 불러오지 못했습니다.')
+    }
+  }
+
+  function selectChatReportFilter(filter: ChatReportFilter) {
+    setChatReportFilter(filter)
+    if (filter !== 'PENDING') {
+      setChatReportAssignmentFilter('ALL')
     }
   }
 
@@ -3420,17 +3453,31 @@ function App() {
               className={chatReportFilter === filter.id ? 'active' : undefined}
               key={filter.id}
               type="button"
-              onClick={() => setChatReportFilter(filter.id)}
+              onClick={() => selectChatReportFilter(filter.id)}
             >
               {filter.label}
             </button>
           ))}
         </div>
-        {chatReports.length === 0 ? (
-          <EmptyState icon={ShieldCheck} text={chatReportEmptyText(chatReportFilter)} />
+        {chatReportFilter === 'PENDING' && (
+          <div className="report-assignment-tabs" role="tablist" aria-label="채팅 신고 담당자">
+            {chatReportAssignmentFilters.map((filter) => (
+              <button
+                className={chatReportAssignmentFilter === filter.id ? 'active' : undefined}
+                key={filter.id}
+                type="button"
+                onClick={() => setChatReportAssignmentFilter(filter.id)}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+        )}
+        {visibleChatReports.length === 0 ? (
+          <EmptyState icon={ShieldCheck} text={chatReportEmptyText(chatReportFilter, chatReportAssignmentFilter)} />
         ) : (
           <div className="report-list">
-            {chatReports.map((report) => {
+            {visibleChatReports.map((report) => {
               const isPending = report.status === 'PENDING'
               const isUnassigned = report.assignedAdminMemberId == null
               const isAssignedToMe = report.assignedAdminMemberId === activeProfileMemberId
@@ -5041,8 +5088,13 @@ function chatReportStatusLabel(status: ChatMessageReportStatus) {
   return '기각'
 }
 
-function chatReportEmptyText(filter: ChatReportFilter) {
-  if (filter === 'PENDING') return '처리할 신고가 없습니다.'
+function chatReportEmptyText(filter: ChatReportFilter, assignmentFilter: ChatReportAssignmentFilter) {
+  if (filter === 'PENDING') {
+    if (assignmentFilter === 'UNASSIGNED') return '미배정 신고가 없습니다.'
+    if (assignmentFilter === 'MINE') return '내가 담당 중인 신고가 없습니다.'
+    if (assignmentFilter === 'OTHERS') return '다른 관리자가 담당 중인 신고가 없습니다.'
+    return '처리할 신고가 없습니다.'
+  }
   if (filter === 'RESOLVED') return '처리 완료된 신고가 없습니다.'
   if (filter === 'REJECTED') return '기각된 신고가 없습니다.'
   return '신고 이력이 없습니다.'
