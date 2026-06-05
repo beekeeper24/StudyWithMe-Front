@@ -8,6 +8,8 @@ import type {
   ChatMessage,
   ChatRoom,
   ChatRoomMember,
+  ContentReport,
+  ContentReportStatus,
   NotificationItem,
   OAuthProvider,
   PageResponse,
@@ -221,6 +223,57 @@ export async function handleChatMessageReport(
   handlingNote = '',
 ): Promise<ChatMessageReport> {
   return request<ChatMessageReport>(`/api/v1/admin/chat-message-reports/${reportId}/handle`, accessToken, {
+    method: 'POST',
+    body: JSON.stringify({ status, handlingNote }),
+  })
+}
+
+export async function reportPostContent(
+  accessToken: string,
+  postId: number,
+  reason: string,
+): Promise<ContentReport> {
+  return request<ContentReport>(`/api/v1/posts/${postId}/reports`, accessToken, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  })
+}
+
+export async function reportCommentContent(
+  accessToken: string,
+  commentId: number,
+  reason: string,
+): Promise<ContentReport> {
+  return request<ContentReport>(`/api/v1/comments/${commentId}/reports`, accessToken, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  })
+}
+
+export async function fetchContentReports(
+  accessToken: string,
+  status?: ContentReportStatus,
+): Promise<ContentReport[]> {
+  const query = status ? `?status=${status}` : ''
+  return request<ContentReport[]>(`/api/v1/admin/content-reports${query}`, accessToken)
+}
+
+export async function assignContentReport(
+  accessToken: string,
+  reportId: number,
+): Promise<ContentReport> {
+  return request<ContentReport>(`/api/v1/admin/content-reports/${reportId}/assign`, accessToken, {
+    method: 'POST',
+  })
+}
+
+export async function handleContentReport(
+  accessToken: string,
+  reportId: number,
+  status: Exclude<ContentReportStatus, 'PENDING'>,
+  handlingNote = '',
+): Promise<ContentReport> {
+  return request<ContentReport>(`/api/v1/admin/content-reports/${reportId}/handle`, accessToken, {
     method: 'POST',
     body: JSON.stringify({ status, handlingNote }),
   })

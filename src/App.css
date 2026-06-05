@@ -2810,6 +2810,10 @@ textarea[aria-invalid="true"] {
   gap: 8px;
 }
 
+.report-modal-summary.single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .report-modal-summary div {
   min-width: 0;
   padding: 10px;
