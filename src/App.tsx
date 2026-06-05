@@ -2290,6 +2290,7 @@ function App() {
       setHandlingChatReportId(report.id)
       const assignedReport = await assignChatMessageReport(accessToken.trim(), report.id)
       setChatReports((current) => current.map((item) => (item.id === report.id ? assignedReport : item)))
+      void loadNotifications()
       showToast('success', '신고를 담당합니다.')
     } catch (error) {
       reportRequestError(error, '채팅 신고를 담당하지 못했습니다.')

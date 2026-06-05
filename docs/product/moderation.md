@@ -20,6 +20,7 @@ Update it when report, admin notification, or moderation navigation behavior cha
 - `처리 완료`, `기각`, and `전체` show handled report history for operational review.
 - Pending reports start as unassigned.
 - Admins claim an unassigned pending report with `담당하기`.
+- After a successful claim, the frontend reloads notifications so the badge and popup reflect the backend read-state cleanup.
 - Only the assigned admin sees resolve/reject actions.
 - Handling a report as resolved or rejected removes it from the pending panel and leaves it visible in history filters.
 - Report rows show reporter, reported member, assigned admin, and handler nicknames when available.
