@@ -40,7 +40,10 @@ Update it when report, admin notification, or moderation navigation behavior cha
 - Admin handling notes are optional, limited to 500 characters, and displayed in handled report history when present.
 - In the `커뮤니티 신고` handling modal, admins can select target deletion only while resolving a report.
 - Rejected community reports do not show the deletion action.
+- In the `채팅 신고` handling modal, admins can select target message deletion only while resolving a report.
+- Rejected chat reports do not show the deletion action.
 - Handled community report rows show when the target was deleted.
+- Handled chat report rows show when the target message was deleted.
 
 ## Admin Notification Navigation
 
