@@ -30,6 +30,10 @@ export type ChatMessage = {
 
 export type ChatMessageReportStatus = 'PENDING' | 'RESOLVED' | 'REJECTED'
 
+export type ContentReportStatus = 'PENDING' | 'RESOLVED' | 'REJECTED'
+
+export type ContentReportTargetType = 'POST' | 'COMMENT'
+
 export type ChatMessageReport = {
   id: number
   roomId: number
@@ -41,6 +45,29 @@ export type ChatMessageReport = {
   messageContent: string
   reason: string
   status: ChatMessageReportStatus
+  assignedAdminMemberId?: number | null
+  assignedAdminNickname?: string | null
+  assignedAt?: string | null
+  handlerMemberId?: number | null
+  handlerNickname?: string | null
+  handlingNote?: string | null
+  createdAt?: string | null
+  handledAt?: string | null
+}
+
+export type ContentReport = {
+  id: number
+  targetType: ContentReportTargetType
+  targetId: number
+  postId: number
+  targetTitle?: string | null
+  targetContent: string
+  reporterMemberId: number
+  reporterNickname?: string | null
+  reportedMemberId: number
+  reportedNickname?: string | null
+  reason: string
+  status: ContentReportStatus
   assignedAdminMemberId?: number | null
   assignedAdminNickname?: string | null
   assignedAt?: string | null

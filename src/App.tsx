@@ -33,6 +33,7 @@ import { consumeOAuthCallback, consumePostLoginRedirectPath, savePostLoginRedire
 import {
   closeStudy,
   completeSignup,
+  assignContentReport as assignContentReportRequest,
   approveStudyJoinRequest,
   cancelStudyJoinRequest,
   createComment,
@@ -74,13 +75,17 @@ import {
   reportChatMessage,
   replyToComment,
   rejectStudyJoinRequest,
+  fetchContentReports,
   handleChatMessageReport,
+  handleContentReport,
+  reportCommentContent,
   updateNickname,
   updateComment,
   updatePost,
   updateStudy,
   withdrawAccount,
   ApiClientError,
+  reportPostContent,
 } from './api'
 import { createRealtimeClient, sendChatMessage } from './realtime'
 import type {
@@ -93,6 +98,9 @@ import type {
   ChatRoomMember,
   CommentItem,
   ConnectionStatus,
+  ContentReport,
+  ContentReportStatus,
+  ContentReportTargetType,
   NotificationItem,
   OAuthProvider,
   PageResponse,
@@ -350,9 +358,21 @@ type PostBoardMode = 'list' | 'detail' | 'write'
 type ToastKind = 'success' | 'error' | 'info'
 type ChatReportFilter = ChatMessageReportStatus | 'ALL'
 type ChatReportAssignmentFilter = 'ALL' | 'UNASSIGNED' | 'MINE' | 'OTHERS'
+type ContentReportFilter = ContentReportStatus | 'ALL'
+type ContentReportAssignmentFilter = 'ALL' | 'UNASSIGNED' | 'MINE' | 'OTHERS'
 type ChatReportHandlingTarget = {
   report: ChatMessageReport
   nextStatus: Exclude<ChatMessageReportStatus, 'PENDING'>
+}
+type ContentReportHandlingTarget = {
+  report: ContentReport
+  nextStatus: Exclude<ContentReportStatus, 'PENDING'>
+}
+type ContentReportDraftTarget = {
+  targetType: ContentReportTargetType
+  targetId: number
+  title?: string | null
+  content: string
 }
 type ToastMessage = {
   id: number
@@ -380,6 +400,18 @@ const chatReportAssignmentFilters: Array<{ id: ChatReportAssignmentFilter; label
   { id: 'MINE', label: '내 담당' },
   { id: 'OTHERS', label: '다른 담당' },
 ]
+const contentReportFilters: Array<{ id: ContentReportFilter; label: string }> = [
+  { id: 'PENDING', label: '대기' },
+  { id: 'RESOLVED', label: '처리 완료' },
+  { id: 'REJECTED', label: '기각' },
+  { id: 'ALL', label: '전체' },
+]
+const contentReportAssignmentFilters: Array<{ id: ContentReportAssignmentFilter; label: string }> = [
+  { id: 'ALL', label: '전체' },
+  { id: 'UNASSIGNED', label: '미배정' },
+  { id: 'MINE', label: '내 담당' },
+  { id: 'OTHERS', label: '다른 담당' },
+]
 
 function App() {
   const [activeView, setActiveView] = useState<WorkspaceView>('lobby')
@@ -395,12 +427,23 @@ function App() {
   const [chatReportFilter, setChatReportFilter] = useState<ChatReportFilter>('PENDING')
   const [chatReportAssignmentFilter, setChatReportAssignmentFilter] =
     useState<ChatReportAssignmentFilter>('ALL')
+  const [contentReports, setContentReports] = useState<ContentReport[]>([])
+  const [contentReportFilter, setContentReportFilter] = useState<ContentReportFilter>('PENDING')
+  const [contentReportAssignmentFilter, setContentReportAssignmentFilter] =
+    useState<ContentReportAssignmentFilter>('ALL')
   const [reportingChatMessage, setReportingChatMessage] = useState<ChatMessage | null>(null)
   const [chatReportReason, setChatReportReason] = useState('')
+  const [reportingContentTarget, setReportingContentTarget] = useState<ContentReportDraftTarget | null>(null)
+  const [contentReportReason, setContentReportReason] = useState('')
   const [isChatReportSubmitting, setIsChatReportSubmitting] = useState(false)
+  const [isContentReportSubmitting, setIsContentReportSubmitting] = useState(false)
   const [handlingChatReportId, setHandlingChatReportId] = useState<number | null>(null)
+  const [handlingContentReportId, setHandlingContentReportId] = useState<number | null>(null)
   const [chatReportHandlingTarget, setChatReportHandlingTarget] = useState<ChatReportHandlingTarget | null>(null)
   const [chatReportHandlingNote, setChatReportHandlingNote] = useState('')
+  const [contentReportHandlingTarget, setContentReportHandlingTarget] =
+    useState<ContentReportHandlingTarget | null>(null)
+  const [contentReportHandlingNote, setContentReportHandlingNote] = useState('')
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [studies, setStudies] = useState<StudyItem[]>([])
   const [myStudyHistory, setMyStudyHistory] = useState<StudyHistory>(emptyStudyHistory)
@@ -561,12 +604,28 @@ function App() {
     }
     return chatReports
   }, [activeProfileMemberId, chatReportAssignmentFilter, chatReportFilter, chatReports])
+  const visibleContentReports = useMemo(() => {
+    if (contentReportFilter !== 'PENDING') return contentReports
+    if (contentReportAssignmentFilter === 'UNASSIGNED') {
+      return contentReports.filter((report) => report.assignedAdminMemberId == null)
+    }
+    if (contentReportAssignmentFilter === 'MINE') {
+      return contentReports.filter((report) => report.assignedAdminMemberId === activeProfileMemberId)
+    }
+    if (contentReportAssignmentFilter === 'OTHERS') {
+      return contentReports.filter((report) =>
+        report.assignedAdminMemberId != null && report.assignedAdminMemberId !== activeProfileMemberId
+      )
+    }
+    return contentReports
+  }, [activeProfileMemberId, contentReportAssignmentFilter, contentReportFilter, contentReports])
 
   useEffect(() => {
     if (!canConnect || needsSignup || activeView !== 'mypage' || !isAdmin) return
     void loadChatReports(chatReportFilter)
+    void loadContentReports(contentReportFilter)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeView, canConnect, chatReportFilter, isAdmin, needsSignup])
+  }, [activeView, canConnect, chatReportFilter, contentReportFilter, isAdmin, needsSignup])
 
   useEffect(() => {
     if (activeView !== 'lobby') return undefined
@@ -852,12 +911,21 @@ function App() {
     setChatReports([])
     setChatReportFilter('PENDING')
     setChatReportAssignmentFilter('ALL')
+    setContentReports([])
+    setContentReportFilter('PENDING')
+    setContentReportAssignmentFilter('ALL')
     setReportingChatMessage(null)
     setChatReportReason('')
+    setReportingContentTarget(null)
+    setContentReportReason('')
     setIsChatReportSubmitting(false)
+    setIsContentReportSubmitting(false)
     setHandlingChatReportId(null)
+    setHandlingContentReportId(null)
     setChatReportHandlingTarget(null)
     setChatReportHandlingNote('')
+    setContentReportHandlingTarget(null)
+    setContentReportHandlingNote('')
     setStudies([])
     setMyStudyHistory(emptyStudyHistory)
     setActiveHistoryItems([])
@@ -1505,6 +1573,16 @@ function App() {
       setChatReportAssignmentFilter('ALL')
       if (isAdmin) {
         await loadChatReports('PENDING')
+      }
+      return
+    }
+
+    if (item.targetType === 'CONTENT_REPORT') {
+      navigateWorkspace('mypage')
+      setContentReportFilter('PENDING')
+      setContentReportAssignmentFilter('ALL')
+      if (isAdmin) {
+        await loadContentReports('PENDING')
       }
       return
     }
@@ -2262,10 +2340,31 @@ function App() {
     }
   }
 
+  async function loadContentReports(filter: ContentReportFilter = contentReportFilter) {
+    if (!requireAuthenticated('커뮤니티 신고 관리')) return
+    if (!isAdmin) return
+    try {
+      const reports = await fetchContentReports(
+        accessToken.trim(),
+        filter === 'ALL' ? undefined : filter,
+      )
+      setContentReports(reports)
+    } catch (error) {
+      reportRequestError(error, '커뮤니티 신고 목록을 불러오지 못했습니다.')
+    }
+  }
+
   function selectChatReportFilter(filter: ChatReportFilter) {
     setChatReportFilter(filter)
     if (filter !== 'PENDING') {
       setChatReportAssignmentFilter('ALL')
+    }
+  }
+
+  function selectContentReportFilter(filter: ContentReportFilter) {
+    setContentReportFilter(filter)
+    if (filter !== 'PENDING') {
+      setContentReportAssignmentFilter('ALL')
     }
   }
 
@@ -2281,6 +2380,18 @@ function App() {
     setChatReportReason('')
   }
 
+  function openContentReportModal(target: ContentReportDraftTarget) {
+    if (target.targetId <= 0) return
+    setReportingContentTarget(target)
+    setContentReportReason('')
+  }
+
+  function closeContentReportModal() {
+    if (isContentReportSubmitting) return
+    setReportingContentTarget(null)
+    setContentReportReason('')
+  }
+
   function openChatReportHandlingModal(
     report: ChatMessageReport,
     nextStatus: Exclude<ChatMessageReportStatus, 'PENDING'>,
@@ -2293,6 +2404,20 @@ function App() {
     if (handlingChatReportId != null) return
     setChatReportHandlingTarget(null)
     setChatReportHandlingNote('')
+  }
+
+  function openContentReportHandlingModal(
+    report: ContentReport,
+    nextStatus: Exclude<ContentReportStatus, 'PENDING'>,
+  ) {
+    setContentReportHandlingTarget({ report, nextStatus })
+    setContentReportHandlingNote('')
+  }
+
+  function closeContentReportHandlingModal() {
+    if (handlingContentReportId != null) return
+    setContentReportHandlingTarget(null)
+    setContentReportHandlingNote('')
   }
 
   async function submitChatReport() {
@@ -2316,6 +2441,31 @@ function App() {
     }
   }
 
+  async function submitContentReport() {
+    if (!requireAuthenticated('커뮤니티 신고')) return
+    if (!reportingContentTarget) return
+    const reason = contentReportReason.trim()
+    if (!reason) {
+      showToast('info', '신고 사유를 입력해 주세요.')
+      return
+    }
+    try {
+      setIsContentReportSubmitting(true)
+      if (reportingContentTarget.targetType === 'POST') {
+        await reportPostContent(accessToken.trim(), reportingContentTarget.targetId, reason)
+      } else {
+        await reportCommentContent(accessToken.trim(), reportingContentTarget.targetId, reason)
+      }
+      setReportingContentTarget(null)
+      setContentReportReason('')
+      showToast('success', '신고가 접수되었습니다.')
+    } catch (error) {
+      reportRequestError(error, '커뮤니티 신고를 접수하지 못했습니다.')
+    } finally {
+      setIsContentReportSubmitting(false)
+    }
+  }
+
   async function assignChatReport(report: ChatMessageReport) {
     if (!requireAuthenticated('채팅 신고 담당')) return
     if (!isAdmin) return
@@ -2329,6 +2479,22 @@ function App() {
       reportRequestError(error, '채팅 신고를 담당하지 못했습니다.')
     } finally {
       setHandlingChatReportId(null)
+    }
+  }
+
+  async function assignContentReport(report: ContentReport) {
+    if (!requireAuthenticated('커뮤니티 신고 담당')) return
+    if (!isAdmin) return
+    try {
+      setHandlingContentReportId(report.id)
+      const assignedReport = await assignContentReportRequest(accessToken.trim(), report.id)
+      setContentReports((current) => current.map((item) => (item.id === report.id ? assignedReport : item)))
+      void loadNotifications()
+      showToast('success', '신고를 담당합니다.')
+    } catch (error) {
+      reportRequestError(error, '커뮤니티 신고를 담당하지 못했습니다.')
+    } finally {
+      setHandlingContentReportId(null)
     }
   }
 
@@ -2363,6 +2529,40 @@ function App() {
       reportRequestError(error, '채팅 신고를 처리하지 못했습니다.')
     } finally {
       setHandlingChatReportId(null)
+    }
+  }
+
+  async function resolveContentReport() {
+    if (!requireAuthenticated('커뮤니티 신고 처리')) return
+    if (!isAdmin) return
+    if (!contentReportHandlingTarget) return
+    const { report, nextStatus } = contentReportHandlingTarget
+    const reportId = report.id
+    const handlingNote = contentReportHandlingNote.trim()
+    try {
+      setHandlingContentReportId(reportId)
+      const handledReport = await handleContentReport(
+        accessToken.trim(),
+        reportId,
+        nextStatus,
+        handlingNote,
+      )
+      setContentReports((current) => {
+        if (contentReportFilter === 'PENDING') {
+          return current.filter((item) => item.id !== reportId)
+        }
+        if (contentReportFilter === 'ALL' || contentReportFilter === nextStatus) {
+          return current.map((item) => (item.id === reportId ? handledReport : item))
+        }
+        return current.filter((item) => item.id !== reportId)
+      })
+      setContentReportHandlingTarget(null)
+      setContentReportHandlingNote('')
+      showToast('success', nextStatus === 'RESOLVED' ? '신고를 처리했습니다.' : '신고를 기각했습니다.')
+    } catch (error) {
+      reportRequestError(error, '커뮤니티 신고를 처리하지 못했습니다.')
+    } finally {
+      setHandlingContentReportId(null)
     }
   }
 
@@ -2603,7 +2803,9 @@ function App() {
         {renderStudyDetailModal()}
         {showAccountManagementModal && renderAccountManagementModal()}
         {reportingChatMessage && renderChatReportModal()}
+        {reportingContentTarget && renderContentReportModal()}
         {chatReportHandlingTarget && renderChatReportHandlingModal()}
+        {contentReportHandlingTarget && renderContentReportHandlingModal()}
         {studyConfirmAction && renderStudyConfirmModal()}
         {commentDeleteTarget && renderCommentDeleteConfirmModal()}
       </main>
@@ -3390,6 +3592,7 @@ function App() {
         </section>
 
         {isAdmin && renderChatReportAdminPanel()}
+        {isAdmin && renderContentReportAdminPanel()}
 
         <div className="study-history-grid">
           <section className="history-section" aria-label="참여 중인 스터디">
@@ -3560,6 +3763,155 @@ function App() {
                             type="button"
                             onClick={() => openChatReportHandlingModal(report, 'RESOLVED')}
                             disabled={handlingChatReportId === report.id}
+                          >
+                            처리 완료
+                          </button>
+                        </>
+                      ) : (
+                        <span className="report-assigned-text">담당 중</span>
+                      )}
+                    </div>
+                  )}
+                </article>
+              )
+            })}
+          </div>
+        )}
+      </section>
+    )
+  }
+
+  function renderContentReportAdminPanel() {
+    return (
+      <section className="admin-report-section" aria-label="커뮤니티 신고 관리">
+        <div className="section-heading compact">
+          <div>
+            <span className="eyebrow">Admin</span>
+            <h2>커뮤니티 신고</h2>
+          </div>
+        </div>
+        <div className="report-filter-tabs" role="tablist" aria-label="커뮤니티 신고 상태">
+          {contentReportFilters.map((filter) => (
+            <button
+              className={contentReportFilter === filter.id ? 'active' : undefined}
+              key={filter.id}
+              type="button"
+              onClick={() => selectContentReportFilter(filter.id)}
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
+        {contentReportFilter === 'PENDING' && (
+          <div className="report-assignment-tabs" role="tablist" aria-label="커뮤니티 신고 담당자">
+            {contentReportAssignmentFilters.map((filter) => (
+              <button
+                className={contentReportAssignmentFilter === filter.id ? 'active' : undefined}
+                key={filter.id}
+                type="button"
+                onClick={() => setContentReportAssignmentFilter(filter.id)}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+        )}
+        {visibleContentReports.length === 0 ? (
+          <EmptyState
+            icon={ShieldCheck}
+            text={contentReportEmptyText(contentReportFilter, contentReportAssignmentFilter)}
+          />
+        ) : (
+          <div className="report-list">
+            {visibleContentReports.map((report) => {
+              const isPending = report.status === 'PENDING'
+              const isUnassigned = report.assignedAdminMemberId == null
+              const isAssignedToMe = report.assignedAdminMemberId === activeProfileMemberId
+              return (
+                <article className="report-row" key={report.id}>
+                  <div className="report-row-main">
+                    <div className="report-row-header">
+                      <div className="report-row-title">
+                        <strong>{contentReportTargetLabel(report)} 신고 #{report.id}</strong>
+                        <span className={`report-status ${report.status.toLowerCase()}`}>
+                          {reportStatusLabel(report.status)}
+                        </span>
+                      </div>
+                      <span>{formatTime(report.createdAt)}</span>
+                    </div>
+                    <div className="report-context-grid">
+                      <div>
+                        <span>신고자</span>
+                        <strong>{reportMemberName(report.reporterNickname)}</strong>
+                      </div>
+                      <div>
+                        <span>피신고자</span>
+                        <strong>{reportMemberName(report.reportedNickname)}</strong>
+                      </div>
+                      <div>
+                        <span>담당자</span>
+                        <strong>{report.assignedAdminMemberId == null ? '미배정' : reportMemberName(report.assignedAdminNickname)}</strong>
+                      </div>
+                      <div>
+                        <span>처리자</span>
+                        <strong>{isPending ? '미처리' : reportMemberName(report.handlerNickname)}</strong>
+                      </div>
+                    </div>
+                    {report.targetTitle && (
+                      <div className="report-content-block">
+                        <span>글 제목</span>
+                        <p>{report.targetTitle}</p>
+                      </div>
+                    )}
+                    <div className="report-content-block">
+                      <span>{report.targetType === 'POST' ? '원문 글' : '원문 댓글'}</span>
+                      <p>{report.targetContent}</p>
+                    </div>
+                    <div className="report-content-block reason">
+                      <span>신고 사유</span>
+                      <p>{report.reason}</p>
+                    </div>
+                    {report.assignedAt && (
+                      <span className="report-handled-text">담당 시작 · {formatTime(report.assignedAt)}</span>
+                    )}
+                    {!isPending && (
+                      <span className="report-handled-text">
+                        {reportStatusLabel(report.status)}
+                        {report.handledAt ? ` · ${formatTime(report.handledAt)}` : ''}
+                      </span>
+                    )}
+                    {!isPending && report.handlingNote && (
+                      <div className="report-content-block note">
+                        <span>처리 메모</span>
+                        <p>{report.handlingNote}</p>
+                      </div>
+                    )}
+                  </div>
+                  {isPending && (
+                    <div className="report-row-actions">
+                      {isUnassigned ? (
+                        <button
+                          className="primary"
+                          type="button"
+                          onClick={() => assignContentReport(report)}
+                          disabled={handlingContentReportId === report.id}
+                        >
+                          담당하기
+                        </button>
+                      ) : isAssignedToMe ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => openContentReportHandlingModal(report, 'REJECTED')}
+                            disabled={handlingContentReportId === report.id}
+                          >
+                            기각
+                          </button>
+                          <button
+                            className="primary"
+                            type="button"
+                            onClick={() => openContentReportHandlingModal(report, 'RESOLVED')}
+                            disabled={handlingContentReportId === report.id}
                           >
                             처리 완료
                           </button>
@@ -3847,6 +4199,80 @@ function App() {
     )
   }
 
+  function renderContentReportModal() {
+    if (!reportingContentTarget) return null
+    const title = reportingContentTarget.targetType === 'POST' ? '글 신고' : '댓글 신고'
+
+    return (
+      <div
+        className="modal-backdrop"
+        role="presentation"
+        onMouseDown={closeContentReportModal}
+      >
+        <section
+          className="account-modal report-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="content-report-title"
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <div className="account-modal-header">
+            <div>
+              <span className="eyebrow">Report</span>
+              <h2 id="content-report-title">{title}</h2>
+            </div>
+            <button
+              className="icon-button"
+              type="button"
+              aria-label="커뮤니티 신고 창 닫기"
+              onClick={closeContentReportModal}
+              disabled={isContentReportSubmitting}
+            >
+              <X size={18} />
+            </button>
+          </div>
+          <div className="confirm-modal-body report-modal-body">
+            {reportingContentTarget.title && (
+              <div className="report-modal-summary single">
+                <div>
+                  <span>글 제목</span>
+                  <strong>{reportingContentTarget.title}</strong>
+                </div>
+              </div>
+            )}
+            <blockquote>{reportingContentTarget.content}</blockquote>
+            <label className="report-reason-field">
+              <span>신고 사유</span>
+              <textarea
+                value={contentReportReason}
+                onChange={(event) => setContentReportReason(event.target.value)}
+                maxLength={500}
+                autoFocus
+              />
+            </label>
+            <div className="withdrawal-confirm-actions">
+              <button
+                type="button"
+                onClick={closeContentReportModal}
+                disabled={isContentReportSubmitting}
+              >
+                취소
+              </button>
+              <button
+                className="danger-text-button"
+                type="button"
+                onClick={submitContentReport}
+                disabled={isContentReportSubmitting || !contentReportReason.trim()}
+              >
+                신고
+              </button>
+            </div>
+          </div>
+        </section>
+      </div>
+    )
+  }
+
   function renderChatReportHandlingModal() {
     if (!chatReportHandlingTarget) return null
     const { report, nextStatus } = chatReportHandlingTarget
@@ -3917,6 +4343,88 @@ function App() {
                 className={isResolving ? 'primary-text-button' : 'danger-text-button'}
                 type="button"
                 onClick={resolveChatReport}
+                disabled={isSubmitting}
+              >
+                {submitLabel}
+              </button>
+            </div>
+          </div>
+        </section>
+      </div>
+    )
+  }
+
+  function renderContentReportHandlingModal() {
+    if (!contentReportHandlingTarget) return null
+    const { report, nextStatus } = contentReportHandlingTarget
+    const isResolving = nextStatus === 'RESOLVED'
+    const title = isResolving ? '신고 처리 완료' : '신고 기각'
+    const submitLabel = isResolving ? '처리 완료' : '기각'
+    const isSubmitting = handlingContentReportId === report.id
+
+    return (
+      <div
+        className="modal-backdrop"
+        role="presentation"
+        onMouseDown={closeContentReportHandlingModal}
+      >
+        <section
+          className="account-modal report-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="content-report-handle-title"
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <div className="account-modal-header">
+            <div>
+              <span className="eyebrow">Admin</span>
+              <h2 id="content-report-handle-title">{title}</h2>
+            </div>
+            <button
+              className="icon-button"
+              type="button"
+              aria-label="커뮤니티 신고 처리 창 닫기"
+              onClick={closeContentReportHandlingModal}
+              disabled={isSubmitting}
+            >
+              <X size={18} />
+            </button>
+          </div>
+          <div className="confirm-modal-body report-modal-body">
+            <div className="report-modal-summary">
+              <div>
+                <span>신고자</span>
+                <strong>{reportMemberName(report.reporterNickname)}</strong>
+              </div>
+              <div>
+                <span>피신고자</span>
+                <strong>{reportMemberName(report.reportedNickname)}</strong>
+              </div>
+            </div>
+            {report.targetTitle && <blockquote>{report.targetTitle}</blockquote>}
+            <blockquote>{report.targetContent}</blockquote>
+            <blockquote>{report.reason}</blockquote>
+            <label className="report-reason-field">
+              <span>처리 메모</span>
+              <textarea
+                value={contentReportHandlingNote}
+                onChange={(event) => setContentReportHandlingNote(event.target.value)}
+                maxLength={500}
+                autoFocus
+              />
+            </label>
+            <div className="withdrawal-confirm-actions">
+              <button
+                type="button"
+                onClick={closeContentReportHandlingModal}
+                disabled={isSubmitting}
+              >
+                취소
+              </button>
+              <button
+                className={isResolving ? 'primary-text-button' : 'danger-text-button'}
+                type="button"
+                onClick={resolveContentReport}
                 disabled={isSubmitting}
               >
                 {submitLabel}
@@ -4301,18 +4809,34 @@ function App() {
                   </div>
                 </header>
                 <p className="post-body">{selectedPost.content}</p>
-                {canManageSelectedPost && (
-                  <div className="post-actions">
-                    <button type="button" onClick={() => beginEditPost(selectedPost)}>
-                      <PencilLine size={16} />
-                      수정
+                <div className="post-actions">
+                  {selectedPost.ownedByRequester !== true && (
+                    <button
+                      type="button"
+                      onClick={() => openContentReportModal({
+                        targetType: 'POST',
+                        targetId: selectedPost.id,
+                        title: selectedPost.title,
+                        content: selectedPost.content,
+                      })}
+                    >
+                      <Flag size={16} />
+                      신고
                     </button>
-                    <button type="button" onClick={removePost}>
-                      <Trash2 size={16} />
-                      삭제
-                    </button>
-                  </div>
-                )}
+                  )}
+                  {canManageSelectedPost && (
+                    <>
+                      <button type="button" onClick={() => beginEditPost(selectedPost)}>
+                        <PencilLine size={16} />
+                        수정
+                      </button>
+                      <button type="button" onClick={removePost}>
+                        <Trash2 size={16} />
+                        삭제
+                      </button>
+                    </>
+                  )}
+                </div>
                 <section className="comments-section" aria-label="댓글">
                   <div className="section-heading compact">
                     <div>
@@ -4365,16 +4889,30 @@ function App() {
           </div>
           <div className="comment-meta-actions">
             <time>{formatDateTime(comment.createdAt)}</time>
-            {comment.ownedByRequester === true && (
-              <div className="comment-action-row">
-                <button type="button" onClick={() => beginEditComment(comment)}>
-                  수정
+            <div className="comment-action-row">
+              {comment.ownedByRequester === true ? (
+                <>
+                  <button type="button" onClick={() => beginEditComment(comment)}>
+                    수정
+                  </button>
+                  <button type="button" onClick={() => setCommentDeleteTarget(comment)}>
+                    삭제
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => openContentReportModal({
+                    targetType: 'COMMENT',
+                    targetId: comment.id,
+                    title: selectedPost?.title,
+                    content: comment.content,
+                  })}
+                >
+                  신고
                 </button>
-                <button type="button" onClick={() => setCommentDeleteTarget(comment)}>
-                  삭제
-                </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
         {renderCommentBody(comment)}
@@ -4390,16 +4928,30 @@ function App() {
                 </div>
                 <div className="comment-meta-actions">
                   <time>{formatDateTime(reply.createdAt)}</time>
-                  {reply.ownedByRequester === true && (
-                    <div className="comment-action-row">
-                      <button type="button" onClick={() => beginEditComment(reply)}>
-                        수정
+                  <div className="comment-action-row">
+                    {reply.ownedByRequester === true ? (
+                      <>
+                        <button type="button" onClick={() => beginEditComment(reply)}>
+                          수정
+                        </button>
+                        <button type="button" onClick={() => setCommentDeleteTarget(reply)}>
+                          삭제
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => openContentReportModal({
+                          targetType: 'COMMENT',
+                          targetId: reply.id,
+                          title: selectedPost?.title,
+                          content: reply.content,
+                        })}
+                      >
+                        신고
                       </button>
-                      <button type="button" onClick={() => setCommentDeleteTarget(reply)}>
-                        삭제
-                      </button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
               {renderCommentBody(reply)}
@@ -5079,10 +5631,15 @@ function notificationLabel(item: NotificationItem) {
   if (item.targetType === 'COMMENT') return '커뮤니티'
   if (item.targetType === 'CHAT_ROOM') return '채팅'
   if (item.targetType === 'CHAT_REPORT') return '신고'
+  if (item.targetType === 'CONTENT_REPORT') return '신고'
   return '알림'
 }
 
 function chatReportStatusLabel(status: ChatMessageReportStatus) {
+  return reportStatusLabel(status)
+}
+
+function reportStatusLabel(status: ChatMessageReportStatus | ContentReportStatus) {
   if (status === 'PENDING') return '대기'
   if (status === 'RESOLVED') return '처리 완료'
   return '기각'
@@ -5098,6 +5655,22 @@ function chatReportEmptyText(filter: ChatReportFilter, assignmentFilter: ChatRep
   if (filter === 'RESOLVED') return '처리 완료된 신고가 없습니다.'
   if (filter === 'REJECTED') return '기각된 신고가 없습니다.'
   return '신고 이력이 없습니다.'
+}
+
+function contentReportEmptyText(filter: ContentReportFilter, assignmentFilter: ContentReportAssignmentFilter) {
+  if (filter === 'PENDING') {
+    if (assignmentFilter === 'UNASSIGNED') return '미배정 신고가 없습니다.'
+    if (assignmentFilter === 'MINE') return '내가 담당 중인 신고가 없습니다.'
+    if (assignmentFilter === 'OTHERS') return '다른 관리자가 담당 중인 신고가 없습니다.'
+    return '처리할 신고가 없습니다.'
+  }
+  if (filter === 'RESOLVED') return '처리 완료된 신고가 없습니다.'
+  if (filter === 'REJECTED') return '기각된 신고가 없습니다.'
+  return '신고 이력이 없습니다.'
+}
+
+function contentReportTargetLabel(report: ContentReport) {
+  return report.targetType === 'POST' ? '글' : '댓글'
 }
 
 function reportMemberName(nickname?: string | null) {
