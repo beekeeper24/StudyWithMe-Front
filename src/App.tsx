@@ -93,6 +93,7 @@ import type {
   AuthProfile,
   ChatMessage,
   ChatMessageReport,
+  ChatMessageReportModerationAction,
   ChatMessageReportStatus,
   ChatRoom,
   ChatRoomMember,
@@ -442,6 +443,8 @@ function App() {
   const [handlingContentReportId, setHandlingContentReportId] = useState<number | null>(null)
   const [chatReportHandlingTarget, setChatReportHandlingTarget] = useState<ChatReportHandlingTarget | null>(null)
   const [chatReportHandlingNote, setChatReportHandlingNote] = useState('')
+  const [chatReportModerationAction, setChatReportModerationAction] =
+    useState<ChatMessageReportModerationAction>('NONE')
   const [contentReportHandlingTarget, setContentReportHandlingTarget] =
     useState<ContentReportHandlingTarget | null>(null)
   const [contentReportHandlingNote, setContentReportHandlingNote] = useState('')
@@ -2402,12 +2405,14 @@ function App() {
   ) {
     setChatReportHandlingTarget({ report, nextStatus })
     setChatReportHandlingNote('')
+    setChatReportModerationAction('NONE')
   }
 
   function closeChatReportHandlingModal() {
     if (handlingChatReportId != null) return
     setChatReportHandlingTarget(null)
     setChatReportHandlingNote('')
+    setChatReportModerationAction('NONE')
   }
 
   function openContentReportHandlingModal(
@@ -2511,12 +2516,14 @@ function App() {
     const { report, nextStatus } = chatReportHandlingTarget
     const reportId = report.id
     const handlingNote = chatReportHandlingNote.trim()
+    const moderationAction = nextStatus === 'RESOLVED' ? chatReportModerationAction : 'NONE'
     try {
       setHandlingChatReportId(reportId)
       const handledReport = await handleChatMessageReport(
         accessToken.trim(),
         reportId,
         nextStatus,
+        moderationAction,
         handlingNote,
       )
       setChatReports((current) => {
@@ -2530,6 +2537,7 @@ function App() {
       })
       setChatReportHandlingTarget(null)
       setChatReportHandlingNote('')
+      setChatReportModerationAction('NONE')
       showToast('success', nextStatus === 'RESOLVED' ? '신고를 처리했습니다.' : '신고를 기각했습니다.')
     } catch (error) {
       reportRequestError(error, '채팅 신고를 처리하지 못했습니다.')
@@ -3737,6 +3745,7 @@ function App() {
                     {!isPending && (
                       <span className="report-handled-text">
                         {chatReportStatusLabel(report.status)}
+                        {report.moderationAction === 'DELETE_TARGET' ? ' · 대상 삭제' : ''}
                         {report.handledAt ? ` · ${formatTime(report.handledAt)}` : ''}
                       </span>
                     )}
@@ -4332,6 +4341,19 @@ function App() {
             </div>
             <blockquote>{report.messageContent}</blockquote>
             <blockquote>{report.reason}</blockquote>
+            {isResolving && (
+              <label className="report-action-option">
+                <input
+                  type="checkbox"
+                  checked={chatReportModerationAction === 'DELETE_TARGET'}
+                  onChange={(event) =>
+                    setChatReportModerationAction(event.target.checked ? 'DELETE_TARGET' : 'NONE')
+                  }
+                  disabled={isSubmitting}
+                />
+                <span>신고 대상 메시지 삭제</span>
+              </label>
+            )}
             <label className="report-reason-field">
               <span>처리 메모</span>
               <textarea

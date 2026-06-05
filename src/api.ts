@@ -4,6 +4,7 @@ import type {
   AuthProfile,
   CommentItem,
   ChatMessageReport,
+  ChatMessageReportModerationAction,
   ChatMessageReportStatus,
   ChatMessage,
   ChatRoom,
@@ -221,11 +222,12 @@ export async function handleChatMessageReport(
   accessToken: string,
   reportId: number,
   status: Exclude<ChatMessageReportStatus, 'PENDING'>,
+  moderationAction: ChatMessageReportModerationAction = 'NONE',
   handlingNote = '',
 ): Promise<ChatMessageReport> {
   return request<ChatMessageReport>(`/api/v1/admin/chat-message-reports/${reportId}/handle`, accessToken, {
     method: 'POST',
-    body: JSON.stringify({ status, handlingNote }),
+    body: JSON.stringify({ status, moderationAction, handlingNote }),
   })
 }
 
