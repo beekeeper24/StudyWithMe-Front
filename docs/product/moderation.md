@@ -17,6 +17,7 @@ Update it when report, admin notification, or moderation navigation behavior cha
 - Regular users do not render the admin report panel.
 - The panel supports `대기`, `처리 완료`, `기각`, and `전체` filters.
 - `대기` is the actionable queue.
+- In the pending queue, admins can further filter by `전체`, `미배정`, `내 담당`, and `다른 담당`.
 - `처리 완료`, `기각`, and `전체` show handled report history for operational review.
 - Pending reports start as unassigned.
 - Admins claim an unassigned pending report with `담당하기`.
@@ -37,7 +38,7 @@ Update it when report, admin notification, or moderation navigation behavior cha
 
 ## Future Assignment UI
 
-When assignment notification is added:
+When assignment notification volume grows:
 
 - Route follow-up notifications only to the assigned admin.
-- Add a filter for reports assigned to the current admin if the pending queue grows.
+- Consider moving the assignment filter server-side if client-side filtering is no longer enough for large queues.
