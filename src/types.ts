@@ -34,6 +34,8 @@ export type ContentReportStatus = 'PENDING' | 'RESOLVED' | 'REJECTED'
 
 export type ContentReportTargetType = 'POST' | 'COMMENT'
 
+export type ContentReportModerationAction = 'NONE' | 'DELETE_TARGET'
+
 export type ChatMessageReport = {
   id: number
   roomId: number
@@ -68,6 +70,7 @@ export type ContentReport = {
   reportedNickname?: string | null
   reason: string
   status: ContentReportStatus
+  moderationAction: ContentReportModerationAction
   assignedAdminMemberId?: number | null
   assignedAdminNickname?: string | null
   assignedAt?: string | null

@@ -2867,6 +2867,26 @@ textarea[aria-invalid="true"] {
   border-color: #8b95a1;
 }
 
+.report-action-option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 12px;
+  border: 1px solid #edf0f3;
+  border-radius: 10px;
+  background: #f8fafb;
+  color: #333d4b;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.report-action-option input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #24272d;
+}
+
 .composer {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 46px;

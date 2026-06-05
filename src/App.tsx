@@ -99,6 +99,7 @@ import type {
   CommentItem,
   ConnectionStatus,
   ContentReport,
+  ContentReportModerationAction,
   ContentReportStatus,
   ContentReportTargetType,
   NotificationItem,
@@ -444,6 +445,8 @@ function App() {
   const [contentReportHandlingTarget, setContentReportHandlingTarget] =
     useState<ContentReportHandlingTarget | null>(null)
   const [contentReportHandlingNote, setContentReportHandlingNote] = useState('')
+  const [contentReportModerationAction, setContentReportModerationAction] =
+    useState<ContentReportModerationAction>('NONE')
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [studies, setStudies] = useState<StudyItem[]>([])
   const [myStudyHistory, setMyStudyHistory] = useState<StudyHistory>(emptyStudyHistory)
@@ -926,6 +929,7 @@ function App() {
     setChatReportHandlingNote('')
     setContentReportHandlingTarget(null)
     setContentReportHandlingNote('')
+    setContentReportModerationAction('NONE')
     setStudies([])
     setMyStudyHistory(emptyStudyHistory)
     setActiveHistoryItems([])
@@ -2412,12 +2416,14 @@ function App() {
   ) {
     setContentReportHandlingTarget({ report, nextStatus })
     setContentReportHandlingNote('')
+    setContentReportModerationAction('NONE')
   }
 
   function closeContentReportHandlingModal() {
     if (handlingContentReportId != null) return
     setContentReportHandlingTarget(null)
     setContentReportHandlingNote('')
+    setContentReportModerationAction('NONE')
   }
 
   async function submitChatReport() {
@@ -2539,12 +2545,14 @@ function App() {
     const { report, nextStatus } = contentReportHandlingTarget
     const reportId = report.id
     const handlingNote = contentReportHandlingNote.trim()
+    const moderationAction = nextStatus === 'RESOLVED' ? contentReportModerationAction : 'NONE'
     try {
       setHandlingContentReportId(reportId)
       const handledReport = await handleContentReport(
         accessToken.trim(),
         reportId,
         nextStatus,
+        moderationAction,
         handlingNote,
       )
       setContentReports((current) => {
@@ -2558,6 +2566,7 @@ function App() {
       })
       setContentReportHandlingTarget(null)
       setContentReportHandlingNote('')
+      setContentReportModerationAction('NONE')
       showToast('success', nextStatus === 'RESOLVED' ? '신고를 처리했습니다.' : '신고를 기각했습니다.')
     } catch (error) {
       reportRequestError(error, '커뮤니티 신고를 처리하지 못했습니다.')
@@ -3877,6 +3886,7 @@ function App() {
                     {!isPending && (
                       <span className="report-handled-text">
                         {reportStatusLabel(report.status)}
+                        {report.moderationAction === 'DELETE_TARGET' ? ' · 대상 삭제' : ''}
                         {report.handledAt ? ` · ${formatTime(report.handledAt)}` : ''}
                       </span>
                     )}
@@ -4404,6 +4414,19 @@ function App() {
             {report.targetTitle && <blockquote>{report.targetTitle}</blockquote>}
             <blockquote>{report.targetContent}</blockquote>
             <blockquote>{report.reason}</blockquote>
+            {isResolving && (
+              <label className="report-action-option">
+                <input
+                  type="checkbox"
+                  checked={contentReportModerationAction === 'DELETE_TARGET'}
+                  onChange={(event) =>
+                    setContentReportModerationAction(event.target.checked ? 'DELETE_TARGET' : 'NONE')
+                  }
+                  disabled={isSubmitting}
+                />
+                <span>신고 대상 {report.targetType === 'POST' ? '게시글' : '댓글'} 삭제</span>
+              </label>
+            )}
             <label className="report-reason-field">
               <span>처리 메모</span>
               <textarea

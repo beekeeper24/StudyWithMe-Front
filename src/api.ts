@@ -9,6 +9,7 @@ import type {
   ChatRoom,
   ChatRoomMember,
   ContentReport,
+  ContentReportModerationAction,
   ContentReportStatus,
   NotificationItem,
   OAuthProvider,
@@ -271,11 +272,12 @@ export async function handleContentReport(
   accessToken: string,
   reportId: number,
   status: Exclude<ContentReportStatus, 'PENDING'>,
+  moderationAction: ContentReportModerationAction = 'NONE',
   handlingNote = '',
 ): Promise<ContentReport> {
   return request<ContentReport>(`/api/v1/admin/content-reports/${reportId}/handle`, accessToken, {
     method: 'POST',
-    body: JSON.stringify({ status, handlingNote }),
+    body: JSON.stringify({ status, moderationAction, handlingNote }),
   })
 }
 
