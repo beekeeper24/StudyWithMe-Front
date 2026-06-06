@@ -81,6 +81,7 @@ import {
   handleChatMessageReport,
   handleContentReport,
   reportCommentContent,
+  restoreMemberSanction,
   updateNickname,
   updateComment,
   updatePost,
@@ -106,8 +107,8 @@ import type {
   ContentReportStatus,
   ContentReportTargetType,
   MemberSanction,
+  MemberSanctionActionType,
   MemberSanctionSourceType,
-  MemberSanctionType,
   NotificationItem,
   OAuthProvider,
   PageResponse,
@@ -392,8 +393,15 @@ type MemberSanctionDraftTarget = {
   defaultReason: string
 }
 
+type MemberSanctionRestoreTarget = {
+  targetMemberId: number
+  targetNickname?: string | null
+  latestType: MemberSanctionActionType
+  defaultReason: string
+}
+
 const memberSanctionOptions: Array<{
-  type: MemberSanctionType
+  type: MemberSanctionActionType
   label: string
   description: string
 }> = [
@@ -494,9 +502,13 @@ function App() {
   const [memberSanctionDraftTarget, setMemberSanctionDraftTarget] =
     useState<MemberSanctionDraftTarget | null>(null)
   const [memberSanctionType, setMemberSanctionType] =
-    useState<MemberSanctionType>('WARNING')
+    useState<MemberSanctionActionType>('WARNING')
   const [memberSanctionReason, setMemberSanctionReason] = useState('')
   const [isMemberSanctionSubmitting, setIsMemberSanctionSubmitting] = useState(false)
+  const [memberSanctionRestoreTarget, setMemberSanctionRestoreTarget] =
+    useState<MemberSanctionRestoreTarget | null>(null)
+  const [memberSanctionRestoreReason, setMemberSanctionRestoreReason] = useState('')
+  const [isMemberSanctionRestoring, setIsMemberSanctionRestoring] = useState(false)
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [studies, setStudies] = useState<StudyItem[]>([])
   const [myStudyHistory, setMyStudyHistory] = useState<StudyHistory>(emptyStudyHistory)
@@ -1000,6 +1012,9 @@ function App() {
     setMemberSanctionType('WARNING')
     setMemberSanctionReason('')
     setIsMemberSanctionSubmitting(false)
+    setMemberSanctionRestoreTarget(null)
+    setMemberSanctionRestoreReason('')
+    setIsMemberSanctionRestoring(false)
     setStudies([])
     setMyStudyHistory(emptyStudyHistory)
     setActiveHistoryItems([])
@@ -2583,6 +2598,53 @@ function App() {
     }
   }
 
+  function openMemberSanctionRestoreModal(target: MemberSanctionRestoreTarget) {
+    setMemberSanctionRestoreTarget(target)
+    setMemberSanctionRestoreReason(target.defaultReason)
+  }
+
+  function closeMemberSanctionRestoreModal() {
+    if (isMemberSanctionRestoring) return
+    setMemberSanctionRestoreTarget(null)
+    setMemberSanctionRestoreReason('')
+  }
+
+  async function submitMemberSanctionRestore() {
+    if (!requireAuthenticated('회원 제재 복구')) return
+    if (!isAdmin || !memberSanctionRestoreTarget) return
+    const reason = memberSanctionRestoreReason.trim()
+    if (!reason) {
+      showToast('info', '복구 사유를 입력해 주세요.')
+      return
+    }
+    try {
+      setIsMemberSanctionRestoring(true)
+      const sanction = await restoreMemberSanction(
+        accessToken.trim(),
+        memberSanctionRestoreTarget.targetMemberId,
+        {
+          reason,
+          sourceType: 'MANUAL',
+          sourceId: null,
+        },
+      )
+      setMemberSanctionsByMemberId((current) => ({
+        ...current,
+        [memberSanctionRestoreTarget.targetMemberId]: [
+          sanction,
+          ...(current[memberSanctionRestoreTarget.targetMemberId] ?? []),
+        ],
+      }))
+      setMemberSanctionRestoreTarget(null)
+      setMemberSanctionRestoreReason('')
+      showToast('success', '회원 계정을 복구했습니다.')
+    } catch (error) {
+      reportRequestError(error, '회원 계정을 복구하지 못했습니다.')
+    } finally {
+      setIsMemberSanctionRestoring(false)
+    }
+  }
+
   async function submitChatReport() {
     if (!requireAuthenticated('메시지 신고')) return
     if (!roomId || !reportingChatMessage?.id) return
@@ -2976,6 +3038,7 @@ function App() {
         {chatReportHandlingTarget && renderChatReportHandlingModal()}
         {contentReportHandlingTarget && renderContentReportHandlingModal()}
         {memberSanctionDraftTarget && renderMemberSanctionModal()}
+        {memberSanctionRestoreTarget && renderMemberSanctionRestoreModal()}
         {studyConfirmAction && renderStudyConfirmModal()}
         {commentDeleteTarget && renderCommentDeleteConfirmModal()}
       </main>
@@ -3912,7 +3975,7 @@ function App() {
                         <p>{report.handlingNote}</p>
                       </div>
                     )}
-                    {renderMemberSanctionHistory(rowKey, report.reportedMemberId)}
+                    {renderMemberSanctionHistory(rowKey, report.reportedMemberId, report.reportedNickname)}
                   </div>
                   <div className="report-row-actions">
                     <button
@@ -4092,7 +4155,7 @@ function App() {
                         <p>{report.handlingNote}</p>
                       </div>
                     )}
-                    {renderMemberSanctionHistory(rowKey, report.reportedMemberId)}
+                    {renderMemberSanctionHistory(rowKey, report.reportedMemberId, report.reportedNickname)}
                   </div>
                   <div className="report-row-actions">
                     <button
@@ -4162,16 +4225,39 @@ function App() {
     )
   }
 
-  function renderMemberSanctionHistory(rowKey: string, targetMemberId: number) {
+  function renderMemberSanctionHistory(
+    rowKey: string,
+    targetMemberId: number,
+    targetNickname?: string | null,
+  ) {
     if (expandedSanctionRowKey !== rowKey) return null
     const sanctions = memberSanctionsByMemberId[targetMemberId]
     const isLoading = loadingSanctionMemberId === targetMemberId
+    const restorableSanction = sanctions?.[0] && isRestorableMemberSanction(sanctions[0])
+      ? sanctions[0]
+      : null
 
     return (
       <div className="member-sanction-history">
         <div className="member-sanction-history-header">
           <strong>제재 이력</strong>
-          {sanctions && <span>{sanctions.length}건</span>}
+          <div>
+            {sanctions && <span>{sanctions.length}건</span>}
+            {restorableSanction && (
+              <button
+                type="button"
+                onClick={() => openMemberSanctionRestoreModal({
+                  targetMemberId,
+                  targetNickname,
+                  latestType: restorableSanction.type,
+                  defaultReason: buildDefaultSanctionReason(`${memberSanctionTypeLabel(restorableSanction.type)} 복구`, restorableSanction.reason),
+                })}
+                disabled={isMemberSanctionRestoring}
+              >
+                복구
+              </button>
+            )}
+          </div>
         </div>
         {isLoading ? (
           <p className="member-sanction-empty">제재 이력을 불러오는 중입니다.</p>
@@ -4818,6 +4904,80 @@ function App() {
                 disabled={isMemberSanctionSubmitting || !memberSanctionReason.trim()}
               >
                 제재 기록
+              </button>
+            </div>
+          </div>
+        </section>
+      </div>
+    )
+  }
+
+  function renderMemberSanctionRestoreModal() {
+    if (!memberSanctionRestoreTarget) return null
+
+    return (
+      <div
+        className="modal-backdrop"
+        role="presentation"
+        onMouseDown={closeMemberSanctionRestoreModal}
+      >
+        <section
+          className="account-modal report-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="member-sanction-restore-title"
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <div className="account-modal-header">
+            <div>
+              <span className="eyebrow">Admin</span>
+              <h2 id="member-sanction-restore-title">회원 계정 복구</h2>
+            </div>
+            <button
+              className="icon-button"
+              type="button"
+              aria-label="회원 계정 복구 창 닫기"
+              onClick={closeMemberSanctionRestoreModal}
+              disabled={isMemberSanctionRestoring}
+            >
+              <X size={18} />
+            </button>
+          </div>
+          <div className="confirm-modal-body report-modal-body">
+            <div className="report-modal-summary">
+              <div>
+                <span>대상 회원</span>
+                <strong>{reportMemberName(memberSanctionRestoreTarget.targetNickname)}</strong>
+              </div>
+              <div>
+                <span>현재 제한</span>
+                <strong>{memberSanctionTypeLabel(memberSanctionRestoreTarget.latestType)}</strong>
+              </div>
+            </div>
+            <label className="report-reason-field">
+              <span>복구 사유</span>
+              <textarea
+                value={memberSanctionRestoreReason}
+                onChange={(event) => setMemberSanctionRestoreReason(event.target.value)}
+                maxLength={500}
+                autoFocus
+              />
+            </label>
+            <div className="withdrawal-confirm-actions">
+              <button
+                type="button"
+                onClick={closeMemberSanctionRestoreModal}
+                disabled={isMemberSanctionRestoring}
+              >
+                취소
+              </button>
+              <button
+                className="primary-text-button"
+                type="button"
+                onClick={submitMemberSanctionRestore}
+                disabled={isMemberSanctionRestoring || !memberSanctionRestoreReason.trim()}
+              >
+                복구 기록
               </button>
             </div>
           </div>
@@ -6081,7 +6241,14 @@ function memberSanctionTypeLabel(type: MemberSanction['type']) {
   if (type === 'WARNING') return '경고'
   if (type === 'SUSPENSION') return '정지'
   if (type === 'BAN') return '차단'
+  if (type === 'RESTORE') return '복구'
   return type
+}
+
+function isRestorableMemberSanction(
+  sanction: MemberSanction,
+): sanction is MemberSanction & { type: 'SUSPENSION' | 'BAN' } {
+  return sanction.type === 'SUSPENSION' || sanction.type === 'BAN'
 }
 
 function memberSanctionSourceLabel(sourceType: MemberSanctionSourceType) {

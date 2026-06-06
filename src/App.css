@@ -1615,6 +1615,19 @@ textarea[aria-invalid="true"] {
   font-size: 13px;
 }
 
+.member-sanction-history-header div {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.member-sanction-history-header button {
+  min-height: 28px;
+  padding: 0 9px;
+  color: #ffffff;
+  background: #24272d;
+}
+
 .member-sanction-list {
   display: grid;
   gap: 8px;
