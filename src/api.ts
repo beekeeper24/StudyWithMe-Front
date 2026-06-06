@@ -12,6 +12,8 @@ import type {
   ContentReport,
   ContentReportModerationAction,
   ContentReportStatus,
+  MemberSanction,
+  MemberSanctionCreatePayload,
   NotificationItem,
   OAuthProvider,
   PageResponse,
@@ -280,6 +282,24 @@ export async function handleContentReport(
   return request<ContentReport>(`/api/v1/admin/content-reports/${reportId}/handle`, accessToken, {
     method: 'POST',
     body: JSON.stringify({ status, moderationAction, handlingNote }),
+  })
+}
+
+export async function fetchMemberSanctions(
+  accessToken: string,
+  targetMemberId: number,
+): Promise<MemberSanction[]> {
+  const params = new URLSearchParams({ targetMemberId: String(targetMemberId) })
+  return request<MemberSanction[]>(`/api/v1/admin/member-sanctions?${params.toString()}`, accessToken)
+}
+
+export async function createMemberSanction(
+  accessToken: string,
+  payload: MemberSanctionCreatePayload,
+): Promise<MemberSanction> {
+  return request<MemberSanction>('/api/v1/admin/member-sanctions', accessToken, {
+    method: 'POST',
+    body: JSON.stringify(payload),
   })
 }
 

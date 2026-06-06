@@ -1594,6 +1594,62 @@ textarea[aria-invalid="true"] {
   margin-bottom: 0;
 }
 
+.member-sanction-history {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid #e5e8eb;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.member-sanction-history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.member-sanction-history-header strong {
+  color: #191f28;
+  font-size: 13px;
+}
+
+.member-sanction-list {
+  display: grid;
+  gap: 8px;
+}
+
+.member-sanction-item {
+  display: grid;
+  gap: 5px;
+  padding: 9px;
+  border: 1px solid #edf0f3;
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.member-sanction-item div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+}
+
+.member-sanction-item strong {
+  color: #b54708;
+  font-size: 13px;
+}
+
+.member-sanction-item p,
+.member-sanction-empty {
+  margin: 0;
+  color: #333d4b;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
 .report-handled-text {
   display: inline-flex;
   margin-top: 8px;

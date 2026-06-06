@@ -37,6 +37,7 @@ import {
   approveStudyJoinRequest,
   cancelStudyJoinRequest,
   createComment,
+  createMemberSanction,
   createPost,
   createPrivateChatRoom,
   createStudy,
@@ -76,6 +77,7 @@ import {
   replyToComment,
   rejectStudyJoinRequest,
   fetchContentReports,
+  fetchMemberSanctions,
   handleChatMessageReport,
   handleContentReport,
   reportCommentContent,
@@ -103,6 +105,8 @@ import type {
   ContentReportModerationAction,
   ContentReportStatus,
   ContentReportTargetType,
+  MemberSanction,
+  MemberSanctionSourceType,
   NotificationItem,
   OAuthProvider,
   PageResponse,
@@ -376,6 +380,14 @@ type ContentReportDraftTarget = {
   title?: string | null
   content: string
 }
+type MemberSanctionDraftTarget = {
+  targetMemberId: number
+  targetNickname?: string | null
+  sourceType: MemberSanctionSourceType
+  sourceId: number
+  sourceLabel: string
+  defaultReason: string
+}
 type ToastMessage = {
   id: number
   kind: ToastKind
@@ -450,6 +462,14 @@ function App() {
   const [contentReportHandlingNote, setContentReportHandlingNote] = useState('')
   const [contentReportModerationAction, setContentReportModerationAction] =
     useState<ContentReportModerationAction>('NONE')
+  const [memberSanctionsByMemberId, setMemberSanctionsByMemberId] =
+    useState<Record<number, MemberSanction[]>>({})
+  const [expandedSanctionRowKey, setExpandedSanctionRowKey] = useState<string | null>(null)
+  const [loadingSanctionMemberId, setLoadingSanctionMemberId] = useState<number | null>(null)
+  const [memberSanctionDraftTarget, setMemberSanctionDraftTarget] =
+    useState<MemberSanctionDraftTarget | null>(null)
+  const [memberSanctionReason, setMemberSanctionReason] = useState('')
+  const [isMemberSanctionSubmitting, setIsMemberSanctionSubmitting] = useState(false)
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [studies, setStudies] = useState<StudyItem[]>([])
   const [myStudyHistory, setMyStudyHistory] = useState<StudyHistory>(emptyStudyHistory)
@@ -930,9 +950,16 @@ function App() {
     setHandlingContentReportId(null)
     setChatReportHandlingTarget(null)
     setChatReportHandlingNote('')
+    setChatReportModerationAction('NONE')
     setContentReportHandlingTarget(null)
     setContentReportHandlingNote('')
     setContentReportModerationAction('NONE')
+    setMemberSanctionsByMemberId({})
+    setExpandedSanctionRowKey(null)
+    setLoadingSanctionMemberId(null)
+    setMemberSanctionDraftTarget(null)
+    setMemberSanctionReason('')
+    setIsMemberSanctionSubmitting(false)
     setStudies([])
     setMyStudyHistory(emptyStudyHistory)
     setActiveHistoryItems([])
@@ -2431,6 +2458,80 @@ function App() {
     setContentReportModerationAction('NONE')
   }
 
+  async function toggleMemberSanctionHistory(rowKey: string, targetMemberId: number) {
+    if (!requireAuthenticated('회원 제재 이력')) return
+    if (!isAdmin) return
+    if (expandedSanctionRowKey === rowKey) {
+      setExpandedSanctionRowKey(null)
+      return
+    }
+    setExpandedSanctionRowKey(rowKey)
+    if (memberSanctionsByMemberId[targetMemberId]) return
+    await loadMemberSanctions(targetMemberId)
+  }
+
+  async function loadMemberSanctions(targetMemberId: number) {
+    if (!requireAuthenticated('회원 제재 이력')) return
+    if (!isAdmin) return
+    try {
+      setLoadingSanctionMemberId(targetMemberId)
+      const sanctions = await fetchMemberSanctions(accessToken.trim(), targetMemberId)
+      setMemberSanctionsByMemberId((current) => ({
+        ...current,
+        [targetMemberId]: sanctions,
+      }))
+    } catch (error) {
+      reportRequestError(error, '회원 제재 이력을 불러오지 못했습니다.')
+    } finally {
+      setLoadingSanctionMemberId(null)
+    }
+  }
+
+  function openMemberSanctionModal(target: MemberSanctionDraftTarget) {
+    setMemberSanctionDraftTarget(target)
+    setMemberSanctionReason(target.defaultReason)
+  }
+
+  function closeMemberSanctionModal() {
+    if (isMemberSanctionSubmitting) return
+    setMemberSanctionDraftTarget(null)
+    setMemberSanctionReason('')
+  }
+
+  async function submitMemberSanction() {
+    if (!requireAuthenticated('회원 제재 기록')) return
+    if (!isAdmin || !memberSanctionDraftTarget) return
+    const reason = memberSanctionReason.trim()
+    if (!reason) {
+      showToast('info', '경고 사유를 입력해 주세요.')
+      return
+    }
+    try {
+      setIsMemberSanctionSubmitting(true)
+      const sanction = await createMemberSanction(accessToken.trim(), {
+        targetMemberId: memberSanctionDraftTarget.targetMemberId,
+        type: 'WARNING',
+        reason,
+        sourceType: memberSanctionDraftTarget.sourceType,
+        sourceId: memberSanctionDraftTarget.sourceId,
+      })
+      setMemberSanctionsByMemberId((current) => ({
+        ...current,
+        [memberSanctionDraftTarget.targetMemberId]: [
+          sanction,
+          ...(current[memberSanctionDraftTarget.targetMemberId] ?? []),
+        ],
+      }))
+      setMemberSanctionDraftTarget(null)
+      setMemberSanctionReason('')
+      showToast('success', '경고 이력을 기록했습니다.')
+    } catch (error) {
+      reportRequestError(error, '경고 이력을 기록하지 못했습니다.')
+    } finally {
+      setIsMemberSanctionSubmitting(false)
+    }
+  }
+
   async function submitChatReport() {
     if (!requireAuthenticated('메시지 신고')) return
     if (!roomId || !reportingChatMessage?.id) return
@@ -2823,6 +2924,7 @@ function App() {
         {reportingContentTarget && renderContentReportModal()}
         {chatReportHandlingTarget && renderChatReportHandlingModal()}
         {contentReportHandlingTarget && renderContentReportHandlingModal()}
+        {memberSanctionDraftTarget && renderMemberSanctionModal()}
         {studyConfirmAction && renderStudyConfirmModal()}
         {commentDeleteTarget && renderCommentDeleteConfirmModal()}
       </main>
@@ -3701,6 +3803,10 @@ function App() {
               const isPending = report.status === 'PENDING'
               const isUnassigned = report.assignedAdminMemberId == null
               const isAssignedToMe = report.assignedAdminMemberId === activeProfileMemberId
+              const rowKey = `CHAT_MESSAGE_REPORT:${report.id}`
+              const canRecordWarning =
+                (isPending && isAssignedToMe) ||
+                (report.status === 'RESOLVED' && report.handlerMemberId === activeProfileMemberId)
               return (
                 <article className="report-row" key={report.id}>
                   <div className="report-row-main">
@@ -3755,41 +3861,67 @@ function App() {
                         <p>{report.handlingNote}</p>
                       </div>
                     )}
+                    {renderMemberSanctionHistory(rowKey, report.reportedMemberId)}
                   </div>
-                  {isPending && (
-                    <div className="report-row-actions">
-                      {isUnassigned ? (
-                        <button
-                          className="primary"
-                          type="button"
-                          onClick={() => assignChatReport(report)}
-                          disabled={handlingChatReportId === report.id}
-                        >
-                          담당하기
-                        </button>
-                      ) : isAssignedToMe ? (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => openChatReportHandlingModal(report, 'REJECTED')}
-                            disabled={handlingChatReportId === report.id}
-                          >
-                            기각
-                          </button>
+                  <div className="report-row-actions">
+                    <button
+                      type="button"
+                      onClick={() => toggleMemberSanctionHistory(rowKey, report.reportedMemberId)}
+                      disabled={loadingSanctionMemberId === report.reportedMemberId}
+                    >
+                      {expandedSanctionRowKey === rowKey ? '이력 닫기' : '제재 이력'}
+                    </button>
+                    {canRecordWarning && (
+                      <button
+                        type="button"
+                        onClick={() => openMemberSanctionModal({
+                          targetMemberId: report.reportedMemberId,
+                          targetNickname: report.reportedNickname,
+                          sourceType: 'CHAT_MESSAGE_REPORT',
+                          sourceId: report.id,
+                          sourceLabel: `채팅 신고 #${report.id}`,
+                          defaultReason: buildDefaultSanctionReason('채팅 신고 경고', report.reason),
+                        })}
+                        disabled={isMemberSanctionSubmitting}
+                      >
+                        경고 기록
+                      </button>
+                    )}
+                    {isPending && (
+                      <>
+                        {isUnassigned ? (
                           <button
                             className="primary"
                             type="button"
-                            onClick={() => openChatReportHandlingModal(report, 'RESOLVED')}
+                            onClick={() => assignChatReport(report)}
                             disabled={handlingChatReportId === report.id}
                           >
-                            처리 완료
+                            담당하기
                           </button>
-                        </>
-                      ) : (
-                        <span className="report-assigned-text">담당 중</span>
-                      )}
-                    </div>
-                  )}
+                        ) : isAssignedToMe ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => openChatReportHandlingModal(report, 'REJECTED')}
+                              disabled={handlingChatReportId === report.id}
+                            >
+                              기각
+                            </button>
+                            <button
+                              className="primary"
+                              type="button"
+                              onClick={() => openChatReportHandlingModal(report, 'RESOLVED')}
+                              disabled={handlingChatReportId === report.id}
+                            >
+                              처리 완료
+                            </button>
+                          </>
+                        ) : (
+                          <span className="report-assigned-text">담당 중</span>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </article>
               )
             })}
@@ -3845,6 +3977,10 @@ function App() {
               const isPending = report.status === 'PENDING'
               const isUnassigned = report.assignedAdminMemberId == null
               const isAssignedToMe = report.assignedAdminMemberId === activeProfileMemberId
+              const rowKey = `CONTENT_REPORT:${report.id}`
+              const canRecordWarning =
+                (isPending && isAssignedToMe) ||
+                (report.status === 'RESOLVED' && report.handlerMemberId === activeProfileMemberId)
               return (
                 <article className="report-row" key={report.id}>
                   <div className="report-row-main">
@@ -3905,47 +4041,109 @@ function App() {
                         <p>{report.handlingNote}</p>
                       </div>
                     )}
+                    {renderMemberSanctionHistory(rowKey, report.reportedMemberId)}
                   </div>
-                  {isPending && (
-                    <div className="report-row-actions">
-                      {isUnassigned ? (
-                        <button
-                          className="primary"
-                          type="button"
-                          onClick={() => assignContentReport(report)}
-                          disabled={handlingContentReportId === report.id}
-                        >
-                          담당하기
-                        </button>
-                      ) : isAssignedToMe ? (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => openContentReportHandlingModal(report, 'REJECTED')}
-                            disabled={handlingContentReportId === report.id}
-                          >
-                            기각
-                          </button>
+                  <div className="report-row-actions">
+                    <button
+                      type="button"
+                      onClick={() => toggleMemberSanctionHistory(rowKey, report.reportedMemberId)}
+                      disabled={loadingSanctionMemberId === report.reportedMemberId}
+                    >
+                      {expandedSanctionRowKey === rowKey ? '이력 닫기' : '제재 이력'}
+                    </button>
+                    {canRecordWarning && (
+                      <button
+                        type="button"
+                        onClick={() => openMemberSanctionModal({
+                          targetMemberId: report.reportedMemberId,
+                          targetNickname: report.reportedNickname,
+                          sourceType: 'CONTENT_REPORT',
+                          sourceId: report.id,
+                          sourceLabel: `커뮤니티 신고 #${report.id}`,
+                          defaultReason: buildDefaultSanctionReason('커뮤니티 신고 경고', report.reason),
+                        })}
+                        disabled={isMemberSanctionSubmitting}
+                      >
+                        경고 기록
+                      </button>
+                    )}
+                    {isPending && (
+                      <>
+                        {isUnassigned ? (
                           <button
                             className="primary"
                             type="button"
-                            onClick={() => openContentReportHandlingModal(report, 'RESOLVED')}
+                            onClick={() => assignContentReport(report)}
                             disabled={handlingContentReportId === report.id}
                           >
-                            처리 완료
+                            담당하기
                           </button>
-                        </>
-                      ) : (
-                        <span className="report-assigned-text">담당 중</span>
-                      )}
-                    </div>
-                  )}
+                        ) : isAssignedToMe ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => openContentReportHandlingModal(report, 'REJECTED')}
+                              disabled={handlingContentReportId === report.id}
+                            >
+                              기각
+                            </button>
+                            <button
+                              className="primary"
+                              type="button"
+                              onClick={() => openContentReportHandlingModal(report, 'RESOLVED')}
+                              disabled={handlingContentReportId === report.id}
+                            >
+                              처리 완료
+                            </button>
+                          </>
+                        ) : (
+                          <span className="report-assigned-text">담당 중</span>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </article>
               )
             })}
           </div>
         )}
       </section>
+    )
+  }
+
+  function renderMemberSanctionHistory(rowKey: string, targetMemberId: number) {
+    if (expandedSanctionRowKey !== rowKey) return null
+    const sanctions = memberSanctionsByMemberId[targetMemberId]
+    const isLoading = loadingSanctionMemberId === targetMemberId
+
+    return (
+      <div className="member-sanction-history">
+        <div className="member-sanction-history-header">
+          <strong>제재 이력</strong>
+          {sanctions && <span>{sanctions.length}건</span>}
+        </div>
+        {isLoading ? (
+          <p className="member-sanction-empty">제재 이력을 불러오는 중입니다.</p>
+        ) : sanctions && sanctions.length > 0 ? (
+          <div className="member-sanction-list">
+            {sanctions.map((sanction) => (
+              <div className="member-sanction-item" key={sanction.id}>
+                <div>
+                  <strong>{memberSanctionTypeLabel(sanction.type)}</strong>
+                  <span>
+                    {memberSanctionSourceLabel(sanction.sourceType)}
+                    {sanction.sourceId ? ` #${sanction.sourceId}` : ''}
+                    {sanction.createdAt ? ` · ${formatTime(sanction.createdAt)}` : ''}
+                  </span>
+                </div>
+                <p>{sanction.reason}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="member-sanction-empty">기록된 제재 이력이 없습니다.</p>
+        )}
+      </div>
     )
   }
 
@@ -4473,6 +4671,84 @@ function App() {
                 disabled={isSubmitting}
               >
                 {submitLabel}
+              </button>
+            </div>
+          </div>
+        </section>
+      </div>
+    )
+  }
+
+  function renderMemberSanctionModal() {
+    if (!memberSanctionDraftTarget) return null
+
+    return (
+      <div
+        className="modal-backdrop"
+        role="presentation"
+        onMouseDown={closeMemberSanctionModal}
+      >
+        <section
+          className="account-modal report-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="member-sanction-title"
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <div className="account-modal-header">
+            <div>
+              <span className="eyebrow">Admin</span>
+              <h2 id="member-sanction-title">경고 이력 기록</h2>
+            </div>
+            <button
+              className="icon-button"
+              type="button"
+              aria-label="경고 이력 기록 창 닫기"
+              onClick={closeMemberSanctionModal}
+              disabled={isMemberSanctionSubmitting}
+            >
+              <X size={18} />
+            </button>
+          </div>
+          <div className="confirm-modal-body report-modal-body">
+            <div className="report-modal-summary">
+              <div>
+                <span>대상 회원</span>
+                <strong>{reportMemberName(memberSanctionDraftTarget.targetNickname)}</strong>
+              </div>
+              <div>
+                <span>연결 신고</span>
+                <strong>{memberSanctionDraftTarget.sourceLabel}</strong>
+              </div>
+            </div>
+            <label className="report-action-option">
+              <input type="checkbox" checked readOnly disabled={isMemberSanctionSubmitting} />
+              <span>회원 경고 이력으로 기록</span>
+            </label>
+            <label className="report-reason-field">
+              <span>경고 사유</span>
+              <textarea
+                value={memberSanctionReason}
+                onChange={(event) => setMemberSanctionReason(event.target.value)}
+                maxLength={500}
+                autoFocus
+              />
+            </label>
+            <div className="withdrawal-confirm-actions">
+              <button
+                type="button"
+                onClick={closeMemberSanctionModal}
+                disabled={isMemberSanctionSubmitting}
+              >
+                취소
+              </button>
+              <button
+                className="primary-text-button"
+                type="button"
+                onClick={submitMemberSanction}
+                disabled={isMemberSanctionSubmitting || !memberSanctionReason.trim()}
+              >
+                경고 기록
               </button>
             </div>
           </div>
@@ -5721,6 +5997,22 @@ function contentReportTargetLabel(report: ContentReport) {
 function reportMemberName(nickname?: string | null) {
   const trimmed = nickname?.trim()
   return trimmed || '탈퇴한 회원'
+}
+
+function memberSanctionTypeLabel(type: MemberSanction['type']) {
+  if (type === 'WARNING') return '경고'
+  return type
+}
+
+function memberSanctionSourceLabel(sourceType: MemberSanctionSourceType) {
+  if (sourceType === 'CHAT_MESSAGE_REPORT') return '채팅 신고'
+  if (sourceType === 'CONTENT_REPORT') return '커뮤니티 신고'
+  return '수동 기록'
+}
+
+function buildDefaultSanctionReason(prefix: string, reportReason: string) {
+  const reason = `${prefix}: ${reportReason.trim()}`
+  return reason.length > 500 ? reason.slice(0, 500) : reason
 }
 
 function avatarDataUrl(value: string) {
