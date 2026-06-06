@@ -14,6 +14,7 @@ import type {
   ContentReportStatus,
   MemberSanction,
   MemberSanctionCreatePayload,
+  MemberSanctionRestorePayload,
   NotificationItem,
   OAuthProvider,
   PageResponse,
@@ -298,6 +299,17 @@ export async function createMemberSanction(
   payload: MemberSanctionCreatePayload,
 ): Promise<MemberSanction> {
   return request<MemberSanction>('/api/v1/admin/member-sanctions', accessToken, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function restoreMemberSanction(
+  accessToken: string,
+  targetMemberId: number,
+  payload: MemberSanctionRestorePayload,
+): Promise<MemberSanction> {
+  return request<MemberSanction>(`/api/v1/admin/members/${targetMemberId}/restore`, accessToken, {
     method: 'POST',
     body: JSON.stringify(payload),
   })

@@ -54,6 +54,9 @@ Update it when report, admin notification, or moderation navigation behavior cha
 - Sanctions are created through `POST /api/v1/admin/member-sanctions` with the report source type and report id.
 - `WARNING` remains record-only.
 - `SUSPENSION` and `BAN` rely on backend account-status enforcement. When the API returns `AUTH-006`, the frontend clears the active session and shows an account restriction notice.
+- If the newest sanction history entry is `SUSPENSION` or `BAN`, the history panel exposes a `복구` action.
+- Restore submits `POST /api/v1/admin/members/{targetMemberId}/restore` with a reason and prepends the returned `RESTORE` history entry.
+- The generic sanction creation UI does not expose `RESTORE`; restoration uses the dedicated endpoint.
 
 ## Admin Notification Navigation
 

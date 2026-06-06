@@ -38,7 +38,9 @@ export type ChatMessageReportModerationAction = 'NONE' | 'DELETE_TARGET'
 
 export type ContentReportModerationAction = 'NONE' | 'DELETE_TARGET'
 
-export type MemberSanctionType = 'WARNING' | 'SUSPENSION' | 'BAN'
+export type MemberSanctionActionType = 'WARNING' | 'SUSPENSION' | 'BAN'
+
+export type MemberSanctionType = MemberSanctionActionType | 'RESTORE'
 
 export type MemberSanctionSourceType = 'MANUAL' | 'CHAT_MESSAGE_REPORT' | 'CONTENT_REPORT'
 
@@ -103,7 +105,13 @@ export type MemberSanction = {
 
 export type MemberSanctionCreatePayload = {
   targetMemberId: number
-  type: MemberSanctionType
+  type: MemberSanctionActionType
+  reason: string
+  sourceType?: MemberSanctionSourceType
+  sourceId?: number | null
+}
+
+export type MemberSanctionRestorePayload = {
   reason: string
   sourceType?: MemberSanctionSourceType
   sourceId?: number | null
