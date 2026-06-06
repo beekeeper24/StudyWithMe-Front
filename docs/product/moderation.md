@@ -45,6 +45,15 @@ Update it when report, admin notification, or moderation navigation behavior cha
 - Handled community report rows show when the target was deleted.
 - Handled chat report rows show when the target message was deleted.
 
+## Admin Member Sanction UI
+
+- Admin report rows expose a `제재 이력` action for the reported member.
+- Opening sanction history loads `GET /api/v1/admin/member-sanctions?targetMemberId={memberId}` and renders the result inline in the report row.
+- Assigned admins can record a `WARNING` sanction from a pending report row.
+- The admin who handled a resolved report can still record a follow-up `WARNING` sanction from the resolved history row.
+- Warning records are created through `POST /api/v1/admin/member-sanctions` with the report source type and report id.
+- Sanction UI is record-only. It does not imply login blocking, token invalidation, suspension, ban, or chat restriction.
+
 ## Admin Notification Navigation
 
 - A notification with target type `CHAT_REPORT` opens My Page.

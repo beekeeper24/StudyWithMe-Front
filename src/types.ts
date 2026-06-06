@@ -38,6 +38,10 @@ export type ChatMessageReportModerationAction = 'NONE' | 'DELETE_TARGET'
 
 export type ContentReportModerationAction = 'NONE' | 'DELETE_TARGET'
 
+export type MemberSanctionType = 'WARNING'
+
+export type MemberSanctionSourceType = 'MANUAL' | 'CHAT_MESSAGE_REPORT' | 'CONTENT_REPORT'
+
 export type ChatMessageReport = {
   id: number
   roomId: number
@@ -82,6 +86,27 @@ export type ContentReport = {
   handlingNote?: string | null
   createdAt?: string | null
   handledAt?: string | null
+}
+
+export type MemberSanction = {
+  id: number
+  targetMemberId: number
+  targetNickname?: string | null
+  adminMemberId: number
+  adminNickname?: string | null
+  type: MemberSanctionType
+  reason: string
+  sourceType: MemberSanctionSourceType
+  sourceId?: number | null
+  createdAt?: string | null
+}
+
+export type MemberSanctionCreatePayload = {
+  targetMemberId: number
+  type: MemberSanctionType
+  reason: string
+  sourceType?: MemberSanctionSourceType
+  sourceId?: number | null
 }
 
 export type ChatRoom = {
