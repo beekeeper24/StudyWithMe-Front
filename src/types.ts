@@ -38,7 +38,7 @@ export type ChatMessageReportModerationAction = 'NONE' | 'DELETE_TARGET'
 
 export type ContentReportModerationAction = 'NONE' | 'DELETE_TARGET'
 
-export type MemberSanctionType = 'WARNING'
+export type MemberSanctionType = 'WARNING' | 'SUSPENSION' | 'BAN'
 
 export type MemberSanctionSourceType = 'MANUAL' | 'CHAT_MESSAGE_REPORT' | 'CONTENT_REPORT'
 

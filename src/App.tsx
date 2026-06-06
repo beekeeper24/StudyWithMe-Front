@@ -107,6 +107,7 @@ import type {
   ContentReportTargetType,
   MemberSanction,
   MemberSanctionSourceType,
+  MemberSanctionType,
   NotificationItem,
   OAuthProvider,
   PageResponse,
@@ -127,6 +128,8 @@ const navItems: Array<{ id: WorkspaceView; label: string; icon: typeof BookOpen 
   { id: 'posts', label: '커뮤니티', icon: Newspaper },
   { id: 'chat', label: '채팅', icon: MessageSquareText },
 ]
+
+const accountRestrictedNotice = '이용이 제한된 계정입니다. 관리자에게 문의해 주세요.'
 
 const communityBoards = [
   { id: 'free', label: '자유게시판', boardType: 'FREE' },
@@ -388,6 +391,28 @@ type MemberSanctionDraftTarget = {
   sourceLabel: string
   defaultReason: string
 }
+
+const memberSanctionOptions: Array<{
+  type: MemberSanctionType
+  label: string
+  description: string
+}> = [
+  {
+    type: 'WARNING',
+    label: '경고',
+    description: '이력만 남기고 로그인은 유지합니다.',
+  },
+  {
+    type: 'SUSPENSION',
+    label: '정지',
+    description: '계정을 정지 상태로 바꿔 API 접근을 막습니다.',
+  },
+  {
+    type: 'BAN',
+    label: '차단',
+    description: '계정을 차단 상태로 바꿔 API 접근을 막습니다.',
+  },
+]
 type ToastMessage = {
   id: number
   kind: ToastKind
@@ -468,6 +493,8 @@ function App() {
   const [loadingSanctionMemberId, setLoadingSanctionMemberId] = useState<number | null>(null)
   const [memberSanctionDraftTarget, setMemberSanctionDraftTarget] =
     useState<MemberSanctionDraftTarget | null>(null)
+  const [memberSanctionType, setMemberSanctionType] =
+    useState<MemberSanctionType>('WARNING')
   const [memberSanctionReason, setMemberSanctionReason] = useState('')
   const [isMemberSanctionSubmitting, setIsMemberSanctionSubmitting] = useState(false)
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
@@ -815,14 +842,19 @@ function App() {
         }
       } catch (error) {
         if (!cancelled) {
-          const message = errorMessage(error, '내 정보를 불러오지 못했습니다.')
-          const notice = '로그인 처리를 완료하지 못했습니다. 다시 로그인해 주세요.'
+          const restricted = isAccountRestricted(error)
+          const message = restricted
+            ? accountRestrictedMessage(error)
+            : errorMessage(error, '내 정보를 불러오지 못했습니다.')
+          const notice = restricted
+            ? message
+            : '로그인 처리를 완료하지 못했습니다. 다시 로그인해 주세요.'
           setAccessToken('')
           applyProfile(null)
           setSessionChecked(true)
           setSessionNotice(notice)
           appendLog(message)
-          showToast('error', '내 정보를 불러오지 못했습니다.', message)
+          showToast('error', restricted ? '계정 이용 제한' : '내 정보를 불러오지 못했습니다.', message)
         }
       }
     }
@@ -860,9 +892,16 @@ function App() {
         setChatRooms(rooms)
         applyPostLoginRedirect()
         appendLog('세션 자동 복구 완료')
-      } catch {
+      } catch (error) {
         if (!cancelled) {
-          appendLog('로그인이 필요합니다')
+          if (isAccountRestricted(error)) {
+            const message = accountRestrictedMessage(error)
+            appendLog(message)
+            setSessionNotice(message)
+            showToast('error', '계정 이용 제한', message)
+          } else {
+            appendLog('로그인이 필요합니다')
+          }
         }
       } finally {
         if (!cancelled) {
@@ -958,6 +997,7 @@ function App() {
     setExpandedSanctionRowKey(null)
     setLoadingSanctionMemberId(null)
     setMemberSanctionDraftTarget(null)
+    setMemberSanctionType('WARNING')
     setMemberSanctionReason('')
     setIsMemberSanctionSubmitting(false)
     setStudies([])
@@ -2314,6 +2354,14 @@ function App() {
     const message = errorMessage(error, fallback)
     appendLog(message)
 
+    if (isAccountRestricted(error)) {
+      const notice = accountRestrictedMessage(error)
+      showToast('error', '계정 이용 제한', notice)
+      clearAuthenticatedState()
+      setSessionNotice(notice)
+      return
+    }
+
     if (isSessionExpired(error)) {
       const notice = '세션이 만료되었습니다. 다시 로그인해 주세요.'
       showToast('error', '로그인이 필요합니다.', notice)
@@ -2489,12 +2537,14 @@ function App() {
 
   function openMemberSanctionModal(target: MemberSanctionDraftTarget) {
     setMemberSanctionDraftTarget(target)
+    setMemberSanctionType('WARNING')
     setMemberSanctionReason(target.defaultReason)
   }
 
   function closeMemberSanctionModal() {
     if (isMemberSanctionSubmitting) return
     setMemberSanctionDraftTarget(null)
+    setMemberSanctionType('WARNING')
     setMemberSanctionReason('')
   }
 
@@ -2503,14 +2553,14 @@ function App() {
     if (!isAdmin || !memberSanctionDraftTarget) return
     const reason = memberSanctionReason.trim()
     if (!reason) {
-      showToast('info', '경고 사유를 입력해 주세요.')
+      showToast('info', '제재 사유를 입력해 주세요.')
       return
     }
     try {
       setIsMemberSanctionSubmitting(true)
       const sanction = await createMemberSanction(accessToken.trim(), {
         targetMemberId: memberSanctionDraftTarget.targetMemberId,
-        type: 'WARNING',
+        type: memberSanctionType,
         reason,
         sourceType: memberSanctionDraftTarget.sourceType,
         sourceId: memberSanctionDraftTarget.sourceId,
@@ -2523,10 +2573,11 @@ function App() {
         ],
       }))
       setMemberSanctionDraftTarget(null)
+      setMemberSanctionType('WARNING')
       setMemberSanctionReason('')
-      showToast('success', '경고 이력을 기록했습니다.')
+      showToast('success', `${memberSanctionTypeLabel(sanction.type)} 제재를 기록했습니다.`)
     } catch (error) {
-      reportRequestError(error, '경고 이력을 기록하지 못했습니다.')
+      reportRequestError(error, '회원 제재를 기록하지 못했습니다.')
     } finally {
       setIsMemberSanctionSubmitting(false)
     }
@@ -3804,7 +3855,7 @@ function App() {
               const isUnassigned = report.assignedAdminMemberId == null
               const isAssignedToMe = report.assignedAdminMemberId === activeProfileMemberId
               const rowKey = `CHAT_MESSAGE_REPORT:${report.id}`
-              const canRecordWarning =
+              const canRecordSanction =
                 (isPending && isAssignedToMe) ||
                 (report.status === 'RESOLVED' && report.handlerMemberId === activeProfileMemberId)
               return (
@@ -3871,7 +3922,7 @@ function App() {
                     >
                       {expandedSanctionRowKey === rowKey ? '이력 닫기' : '제재 이력'}
                     </button>
-                    {canRecordWarning && (
+                    {canRecordSanction && (
                       <button
                         type="button"
                         onClick={() => openMemberSanctionModal({
@@ -3880,11 +3931,11 @@ function App() {
                           sourceType: 'CHAT_MESSAGE_REPORT',
                           sourceId: report.id,
                           sourceLabel: `채팅 신고 #${report.id}`,
-                          defaultReason: buildDefaultSanctionReason('채팅 신고 경고', report.reason),
+                          defaultReason: buildDefaultSanctionReason('채팅 신고 제재', report.reason),
                         })}
                         disabled={isMemberSanctionSubmitting}
                       >
-                        경고 기록
+                        제재 기록
                       </button>
                     )}
                     {isPending && (
@@ -3978,7 +4029,7 @@ function App() {
               const isUnassigned = report.assignedAdminMemberId == null
               const isAssignedToMe = report.assignedAdminMemberId === activeProfileMemberId
               const rowKey = `CONTENT_REPORT:${report.id}`
-              const canRecordWarning =
+              const canRecordSanction =
                 (isPending && isAssignedToMe) ||
                 (report.status === 'RESOLVED' && report.handlerMemberId === activeProfileMemberId)
               return (
@@ -4051,7 +4102,7 @@ function App() {
                     >
                       {expandedSanctionRowKey === rowKey ? '이력 닫기' : '제재 이력'}
                     </button>
-                    {canRecordWarning && (
+                    {canRecordSanction && (
                       <button
                         type="button"
                         onClick={() => openMemberSanctionModal({
@@ -4060,11 +4111,11 @@ function App() {
                           sourceType: 'CONTENT_REPORT',
                           sourceId: report.id,
                           sourceLabel: `커뮤니티 신고 #${report.id}`,
-                          defaultReason: buildDefaultSanctionReason('커뮤니티 신고 경고', report.reason),
+                          defaultReason: buildDefaultSanctionReason('커뮤니티 신고 제재', report.reason),
                         })}
                         disabled={isMemberSanctionSubmitting}
                       >
-                        경고 기록
+                        제재 기록
                       </button>
                     )}
                     {isPending && (
@@ -4698,12 +4749,12 @@ function App() {
           <div className="account-modal-header">
             <div>
               <span className="eyebrow">Admin</span>
-              <h2 id="member-sanction-title">경고 이력 기록</h2>
+              <h2 id="member-sanction-title">회원 제재 기록</h2>
             </div>
             <button
               className="icon-button"
               type="button"
-              aria-label="경고 이력 기록 창 닫기"
+              aria-label="회원 제재 기록 창 닫기"
               onClick={closeMemberSanctionModal}
               disabled={isMemberSanctionSubmitting}
             >
@@ -4721,12 +4772,30 @@ function App() {
                 <strong>{memberSanctionDraftTarget.sourceLabel}</strong>
               </div>
             </div>
-            <label className="report-action-option">
-              <input type="checkbox" checked readOnly disabled={isMemberSanctionSubmitting} />
-              <span>회원 경고 이력으로 기록</span>
-            </label>
+            <fieldset className="member-sanction-type-options">
+              <legend>제재 유형</legend>
+              {memberSanctionOptions.map((option) => (
+                <label
+                  className={`member-sanction-type-option${memberSanctionType === option.type ? ' selected' : ''}`}
+                  key={option.type}
+                >
+                  <input
+                    type="radio"
+                    name="member-sanction-type"
+                    value={option.type}
+                    checked={memberSanctionType === option.type}
+                    onChange={() => setMemberSanctionType(option.type)}
+                    disabled={isMemberSanctionSubmitting}
+                  />
+                  <span>
+                    <strong>{option.label}</strong>
+                    <small>{option.description}</small>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
             <label className="report-reason-field">
-              <span>경고 사유</span>
+              <span>제재 사유</span>
               <textarea
                 value={memberSanctionReason}
                 onChange={(event) => setMemberSanctionReason(event.target.value)}
@@ -4748,7 +4817,7 @@ function App() {
                 onClick={submitMemberSanction}
                 disabled={isMemberSanctionSubmitting || !memberSanctionReason.trim()}
               >
-                경고 기록
+                제재 기록
               </button>
             </div>
           </div>
@@ -5792,6 +5861,15 @@ function isSessionExpired(error: unknown) {
   return error instanceof ApiClientError && error.status === 401
 }
 
+function isAccountRestricted(error: unknown) {
+  return error instanceof ApiClientError && error.code === 'AUTH-006'
+}
+
+function accountRestrictedMessage(error: unknown) {
+  if (error instanceof ApiClientError && error.message.trim()) return error.message
+  return accountRestrictedNotice
+}
+
 function isStudyRecruiting(status: string) {
   return recruitingStudyStatuses.has(status.toUpperCase())
 }
@@ -6001,6 +6079,8 @@ function reportMemberName(nickname?: string | null) {
 
 function memberSanctionTypeLabel(type: MemberSanction['type']) {
   if (type === 'WARNING') return '경고'
+  if (type === 'SUSPENSION') return '정지'
+  if (type === 'BAN') return '차단'
   return type
 }
 

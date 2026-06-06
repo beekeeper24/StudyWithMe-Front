@@ -2943,6 +2943,66 @@ textarea[aria-invalid="true"] {
   accent-color: #24272d;
 }
 
+.member-sanction-type-options {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.member-sanction-type-options legend {
+  margin-bottom: 2px;
+  color: #333d4b;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.member-sanction-type-option {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 9px;
+  align-items: start;
+  padding: 10px 12px;
+  border: 1px solid #edf0f3;
+  border-radius: 10px;
+  background: #f8fafb;
+  color: #333d4b;
+  cursor: pointer;
+  transition:
+    border-color 150ms ease,
+    background 150ms ease;
+}
+
+.member-sanction-type-option.selected {
+  border-color: #8b95a1;
+  background: #ffffff;
+}
+
+.member-sanction-type-option input {
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  accent-color: #24272d;
+}
+
+.member-sanction-type-option span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.member-sanction-type-option strong {
+  color: #191f28;
+  font-size: 13px;
+}
+
+.member-sanction-type-option small {
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .composer {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 46px;

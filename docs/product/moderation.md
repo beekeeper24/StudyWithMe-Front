@@ -49,10 +49,11 @@ Update it when report, admin notification, or moderation navigation behavior cha
 
 - Admin report rows expose a `제재 이력` action for the reported member.
 - Opening sanction history loads `GET /api/v1/admin/member-sanctions?targetMemberId={memberId}` and renders the result inline in the report row.
-- Assigned admins can record a `WARNING` sanction from a pending report row.
-- The admin who handled a resolved report can still record a follow-up `WARNING` sanction from the resolved history row.
-- Warning records are created through `POST /api/v1/admin/member-sanctions` with the report source type and report id.
-- Sanction UI is record-only. It does not imply login blocking, token invalidation, suspension, ban, or chat restriction.
+- Assigned admins can record `WARNING`, `SUSPENSION`, or `BAN` sanctions from a pending report row.
+- The admin who handled a resolved report can still record a follow-up sanction from the resolved history row.
+- Sanctions are created through `POST /api/v1/admin/member-sanctions` with the report source type and report id.
+- `WARNING` remains record-only.
+- `SUSPENSION` and `BAN` rely on backend account-status enforcement. When the API returns `AUTH-006`, the frontend clears the active session and shows an account restriction notice.
 
 ## Admin Notification Navigation
 
