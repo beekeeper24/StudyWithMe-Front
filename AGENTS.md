@@ -187,3 +187,6 @@ Final responses should briefly report:
 - what verification ran;
 - what learning or handoff note was updated;
 - any follow-up activation step that still requires the user.
+
+After completing a work slice, do not jump straight to proposing the next task.
+Explain the completed work in friendly, concrete detail first: what was changed, why it was changed, how the main code path behaves now, what tests or CI proved it, what was intentionally left out of scope, and what risk or follow-up remains.
