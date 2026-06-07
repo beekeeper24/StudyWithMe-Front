@@ -29,7 +29,14 @@ import {
   X,
 } from 'lucide-react'
 import './App.css'
-import { consumeOAuthCallback, consumePostLoginRedirectPath, savePostLoginRedirectPath } from './auth'
+import {
+  authActionLoginNotice,
+  consumeOAuthCallback,
+  consumePostLoginRedirectPath,
+  savePostLoginRedirectPath,
+  sessionExpiredLoginNotice,
+  shouldSavePostLoginRedirectPath,
+} from './auth'
 import {
   closeStudy,
   completeSignup,
@@ -913,6 +920,9 @@ function App() {
             showToast('error', '계정 이용 제한', message)
           } else {
             appendLog('로그인이 필요합니다')
+            if (shouldSavePostLoginRedirectPath(`${window.location.pathname}${window.location.search}`)) {
+              setSessionNotice('로그인이 필요합니다. 로그인하면 이 화면으로 돌아옵니다.')
+            }
           }
         }
       } finally {
@@ -1079,8 +1089,11 @@ function App() {
       setNicknameError(message)
       appendLog(message)
       if (isSessionExpired(error)) {
-        showToast('error', '로그인이 필요합니다.', '다시 로그인해 주세요.')
+        const notice = sessionExpiredLoginNotice()
+        savePostLoginRedirectPath()
+        showToast('error', '로그인이 필요합니다.', notice)
         clearAuthenticatedState()
+        setSessionNotice(notice)
       }
     } finally {
       setIsNicknameSaving(false)
@@ -1121,8 +1134,11 @@ function App() {
       setNicknameError(message)
       appendLog(message)
       if (isSessionExpired(error)) {
-        showToast('error', '로그인이 필요합니다.', '다시 로그인해 주세요.')
+        const notice = sessionExpiredLoginNotice()
+        savePostLoginRedirectPath()
+        showToast('error', '로그인이 필요합니다.', notice)
         clearAuthenticatedState()
+        setSessionNotice(notice)
       }
     } finally {
       setIsNicknameSaving(false)
@@ -2378,7 +2394,8 @@ function App() {
     }
 
     if (isSessionExpired(error)) {
-      const notice = '세션이 만료되었습니다. 다시 로그인해 주세요.'
+      const notice = sessionExpiredLoginNotice()
+      savePostLoginRedirectPath()
       showToast('error', '로그인이 필요합니다.', notice)
       clearAuthenticatedState()
       setSessionNotice(notice)
@@ -2390,8 +2407,10 @@ function App() {
 
   function requireAuthenticated(actionName: string) {
     if (canConnect) return true
-    const message = `${actionName}은 로그인 후 사용할 수 있습니다.`
+    const message = authActionLoginNotice(actionName)
+    savePostLoginRedirectPath()
     appendLog(message)
+    setSessionNotice(message)
     showToast('error', '로그인이 필요합니다.', message)
     return false
   }
