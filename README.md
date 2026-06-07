@@ -73,3 +73,18 @@ OAUTH_SUCCESS_FRONTEND_REDIRECT_URI=http://localhost:5174/auth/callback ./gradle
 ```
 
 REST와 STOMP 연결은 OAuth 로그인 후 발급된 access token으로 자동 처리합니다.
+
+## Production Deployment
+
+Vercel 같은 호스팅 환경에서는 `.env.production.example`을 기준으로 운영 환경변수를 설정합니다.
+
+```bash
+VITE_API_BASE_URL=https://api.example.com
+VITE_WS_URL=wss://api.example.com/ws
+```
+
+- `VITE_API_BASE_URL`은 백엔드 API origin입니다. 끝에 `/api/v1`을 붙이지 않습니다.
+- `VITE_WS_URL`은 백엔드 STOMP WebSocket endpoint입니다. 운영 HTTPS 배포에서는 `wss://`를 사용합니다.
+- 프론트 API client는 refresh token cookie를 보낼 수 있도록 모든 `fetch` 요청에 `credentials: 'include'`를 사용합니다.
+- 백엔드 `APP_CORS_ALLOWED_ORIGINS`에는 실제 프론트 origin을 정확히 넣어야 합니다.
+- 프론트와 백엔드가 cross-site이면 백엔드 refresh cookie 설정에 `REFRESH_TOKEN_COOKIE_SAME_SITE=None`과 `REFRESH_TOKEN_COOKIE_SECURE=true`가 필요합니다.
